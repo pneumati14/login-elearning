@@ -1,0 +1,28 @@
+# Environment files — never commit secrets
+# Anchored to the repo root so the committed backend/.env and
+# frontend/.env (framework defaults, no secrets) are NOT ignored.
+/.env
+/staging/.env
+/production/.env
+*.env.local
+
+# Dependencies
+/backend/vendor/
+/frontend/node_modules/
+
+# Build / runtime output
+/backend/var/
+/frontend/dist/
+
+# Persistent storage (keep the directory, ignore its contents)
+/storage/*
+!/storage/.gitkeep
+/storage-staging/*
+!/storage-staging/.gitkeep
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

@@ -1,0 +1,12 @@
+# Regenerated inside the image by `npm install` — never copy from host
+/node_modules/
+
+# Build output
+/dist/
+
+# Local environment overrides — never bake secrets into the image
+.env.local
+.env.*.local
+
+# VCS
+/.git/

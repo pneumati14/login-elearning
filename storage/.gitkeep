@@ -1,0 +1,3 @@
+# This directory holds persistent shared files (uploads, generated media).
+# It is bind-mounted into the backend container at /var/www/html/var/storage.
+# Tracked via this placeholder; its contents are git-ignored.

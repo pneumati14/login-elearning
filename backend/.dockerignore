@@ -1,0 +1,10 @@
+# Regenerated inside the image by `composer install` — never copy from host
+/vendor/
+/var/
+
+# Local environment overrides — never bake secrets into the image
+/.env.local
+/.env.*.local
+
+# VCS
+/.git/

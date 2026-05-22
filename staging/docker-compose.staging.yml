@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────────────
+# Staging overlay
+#
+#   docker compose \
+#     -f docker-compose.yml \
+#     -f staging/docker-compose.staging.yml \
+#     --env-file staging/.env \
+#     up -d --build
+#
+# Because no -f flag points at docker-compose.override.yml, the dev
+# overrides are NOT applied here: application code is baked into the
+# images (no bind mounts) and the database port is not published.
+# ─────────────────────────────────────────────────────────────────────
+
+services:
+
+  database:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend:
+    environment:
+      APP_ENV: staging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  frontend:
+    build:
+      # Serve the compiled static bundle (nginx), same as production.
+      target: prod
+    environment:
+      NODE_ENV: staging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  caddy:
+    # Staging shares the host with production, which already binds
+    # 80/443. Publish ONLY HTTPS, on a non-standard port; no HTTP
+    # listener is exposed. Reach staging at  https://<host>:8443
+    ports: !override
+      - "${HTTPS_PORT:-8443}:443"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

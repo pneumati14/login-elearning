@@ -1,0 +1,28 @@
+@import './base.css';
+
+#app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 1.25rem 2rem;
+  font-weight: normal;
+}
+
+a {
+  text-decoration: none;
+  transition: 0.2s ease;
+}
+
+/* When printing (e.g. a certificate) drop the site chrome and any
+   element explicitly marked as screen-only. */
+@media print {
+  .header-primary,
+  .footer-primary,
+  .no-print {
+    display: none !important;
+  }
+
+  #app {
+    max-width: none;
+    padding: 0;
+  }
+}

@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────────────
+# Development overrides
+#
+# Docker Compose merges this file on top of docker-compose.yml
+# automatically whenever you run `docker compose` with no `-f` flags.
+# It is NOT used for staging or production (those pass explicit -f files).
+#
+# What it adds for local development:
+#   · source-code bind mounts  → live reload, edit on the host
+#   · dev environment values   → APP_ENV=dev, NODE_ENV=development
+#
+# NOTE: the database (5432) and Vite (5173) host port mappings were
+# removed — on a public host they exposed PostgreSQL and the dev server
+# to the internet. For local development re-add `ports:` as needed, or
+# better, run the production overlay (see docker-compose.yml header).
+# ─────────────────────────────────────────────────────────────────────
+
+services:
+
+  backend:
+    environment:
+      APP_ENV: dev
+    volumes:
+      # Mount the Symfony source so changes are picked up without rebuilds.
+      - ./backend:/var/www/html
+      # Raised PHP upload limits for course media uploads.
+      - ./docker/backend/uploads.ini:/usr/local/etc/php/conf.d/zz-uploads.ini:ro
+
+  frontend:
+    build:
+      target: dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      # Mount the Vue source; keep node_modules in a named volume so the
+      # (empty) host directory does not shadow the installed dependencies.
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+
+volumes:
+  frontend-node-modules:

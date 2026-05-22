@@ -1,0 +1,70 @@
+security:
+    # Hash passwords for any user entity that carries a password.
+    password_hashers:
+        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
+
+    # Users are loaded from the database, looked up by their e-mail.
+    providers:
+        app_user_provider:
+            entity:
+                class: App\Entity\User
+                property: email
+
+    firewalls:
+        # Profiler, web debug toolbar and static assets are never secured.
+        dev:
+            pattern: ^/(_(profiler|wdt)|css|images|js)/
+            security: false
+
+        # The single application firewall. Authentication is stateful:
+        # a session cookie keeps the user logged in across requests.
+        main:
+            lazy: true
+            provider: app_user_provider
+
+            # SPA login: the frontend POSTs JSON {email, password} here.
+            json_login:
+                check_path: api_login
+                username_path: email
+                password_path: password
+                success_handler: App\Security\JsonLoginHandler
+                failure_handler: App\Security\JsonLoginHandler
+
+            # Brute-force protection: after 5 failed logins (per e-mail
+            # + IP) within 15 minutes, further attempts are rejected.
+            login_throttling:
+                max_attempts: 5
+                interval: '15 minutes'
+
+            # POST here to destroy the session.
+            logout:
+                path: api_logout
+
+            # Unauthenticated requests to protected routes get a JSON 401
+            # instead of a redirect to an HTML login page.
+            entry_point: App\Security\JsonAuthEntryPoint
+
+    # Only the *first* matching rule applies — keep most specific on top.
+    access_control:
+        - { path: ^/api/login,  roles: PUBLIC_ACCESS }
+        - { path: ^/api/logout, roles: PUBLIC_ACCESS }
+        - { path: ^/api/health, roles: PUBLIC_ACCESS }
+        - { path: ^/api/publications, roles: PUBLIC_ACCESS }
+        - { path: ^/api/admin,   roles: ROLE_ADMIN }
+        - { path: ^/api/me,      roles: ROLE_USER }
+        - { path: ^/api/users,   roles: ROLE_USER }
+        - { path: ^/api/courses, roles: ROLE_USER }
+        - { path: ^/api/lessons, roles: ROLE_USER }
+        - { path: ^/api/quizzes, roles: ROLE_USER }
+        - { path: ^/api/certificates, roles: ROLE_USER }
+
+when@test:
+    security:
+        password_hashers:
+            # Password hashers are resource-intensive by design to ensure security.
+            # In tests, it's safe to reduce their cost to improve performance.
+            Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface:
+                algorithm: auto
+                cost: 4 # Lowest possible value for bcrypt
+                time_cost: 3 # Lowest possible value for argon
+                memory_cost: 10 # Lowest possible value for argon

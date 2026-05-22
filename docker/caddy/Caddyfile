@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────────────────────────────
+# Caddy reverse proxy
+#
+# Caddy terminates HTTP/HTTPS and routes traffic:
+#   /api/*  → Symfony backend (PHP-FPM)
+#   /*      → Vue.js frontend (Vite)
+#
+# For a public SITE_ADDRESS it provisions a TLS certificate
+# automatically; for "localhost" it uses its internal CA.
+# ─────────────────────────────────────────────────────────────────────
+
+{
+	# For a public domain, uncomment so Let's Encrypt can send
+	# certificate expiry / problem notifications (value from ACME_EMAIL).
+	# email {$ACME_EMAIL}
+
+	# Certificate served when a client connects without SNI — e.g. a
+	# browser opening the site by raw IP address.
+	default_sni {$DEFAULT_SNI:localhost}
+}
+
+# Site address is taken from the SITE_ADDRESS env var (see .env),
+# defaulting to localhost.
+{$SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	log {
+		output stdout
+		format console
+	}
+
+	# ── Security headers ─────────────────────────────────────────────
+	# Applied to every response (frontend and API, including uploaded
+	# files — `nosniff` blocks MIME-sniffing of user uploads).
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Everything is same-origin except embedded YouTube lesson videos.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src https://www.youtube.com; media-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		# Don't advertise the server software.
+		-Server
+	}
+
+	# ── API → Symfony backend (PHP-FPM) ──────────────────────────────
+	# Requests under /api are executed by the Symfony front controller.
+	# The backend's public/ directory is mounted read-only into this
+	# container (see docker-compose.yml) so Caddy can resolve file
+	# paths; PHP itself runs in the `backend` container on port 9000.
+	handle /api/* {
+		root * /var/www/html/public
+		php_fastcgi backend:9000
+	}
+
+	# ── Everything else → Vue.js frontend ────────────────────────────
+	# Proxied to the Vite dev server, including HMR websockets.
+	handle {
+		reverse_proxy frontend:5173
+	}
+}
