@@ -14,8 +14,8 @@ const { locale } = useI18n()
 const auth = useAuthStore()
 
 const languages: Lang[] = [
-  { code: 'hu', flag: '🇭🇺', label: 'Magyar' },
-  { code: 'en', flag: '🇬🇧', label: 'English' },
+  { code: 'hu', flag: '/frontend-files/images/flags/hu.svg', label: 'Magyar' },
+  { code: 'en', flag: '/frontend-files/images/flags/gb.svg', label: 'English' },
 ]
 
 const open = ref(false)
@@ -50,8 +50,8 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocPointerDown
       title="Language"
       @click="open = !open"
     >
-      <span class="lang-flag">{{ current.flag }}</span>
-      <span class="lang-caret">▾</span>
+      <img class="lang-flag" :src="current.flag" :alt="current.label" />
+      <span class="lang-caret" aria-hidden="true"></span>
     </button>
 
     <div v-if="open" class="lang-menu">
@@ -63,7 +63,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocPointerDown
         :class="{ active: lang.code === locale }"
         @click="choose(lang.code)"
       >
-        <span class="lang-flag">{{ lang.flag }}</span>
+        <img class="lang-flag" :src="lang.flag" :alt="lang.label" />
         <span>{{ lang.label }}</span>
       </button>
     </div>
@@ -88,18 +88,31 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocPointerDown
 
 .lang-toggle:hover,
 .lang-toggle.open {
-  border-color: #d4dae6;
-  background: #f6f7fb;
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
 }
 
+/* Crisp SVG flag shown as a modern circular chip. */
 .lang-flag {
-  font-size: 1.25rem;
-  line-height: 1;
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgba(12, 28, 64, 0.15);
 }
 
 .lang-caret {
-  color: #8b94a6;
-  font-size: 0.6rem;
+  width: 0;
+  height: 0;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  border-top: 5px solid rgba(255, 255, 255, 0.7);
+  transition: transform 0.15s ease;
+}
+
+.lang-toggle.open .lang-caret {
+  transform: rotate(180deg);
 }
 
 .lang-menu {

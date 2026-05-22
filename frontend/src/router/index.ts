@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { products } from '../data/products'
+import { highSensitivityPages } from '../data/highSensitivity'
 import { useAuthStore } from '../stores/auth'
 
 const router = createRouter({
@@ -103,6 +104,14 @@ const router = createRouter({
       name: 'research',
       component: () => import('../views/ResearchView.vue'),
     },
+    // High Sensitivity Solutions — separate from the standard service.
+    // One route per slug, generated from the high-sensitivity data.
+    ...highSensitivityPages.map((p) => ({
+      path: `/high-sensitivity/${p.slug}`,
+      name: p.routeName,
+      component: () => import('../views/HighSensitivityView.vue'),
+      props: { slug: p.slug },
+    })),
     // One route per product page, generated from the product data.
     ...products.map((p) => ({
       path: `/${p.slug}`,

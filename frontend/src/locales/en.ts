@@ -48,6 +48,23 @@ export default {
     adminPublications: 'Publications',
     adminPositions: 'Positions',
     back: 'back',
+    hss: 'High Sensitivity Solutions',
+    hssShort: 'HSS',
+    hssHealth: 'Health',
+    hssDefense: 'Defense',
+    hssAviation: 'Aviation',
+  },
+  highSensitivity: {
+    eyebrow: 'High Sensitivity Solutions',
+    introHealth:
+      'Our healthcare solutions are provided exclusively on a custom-order basis, so individual contact is required in every case.',
+    introDefense:
+      'Our defense solutions are provided exclusively on a custom-order basis, so individual contact is required in every case.',
+    introAviation:
+      'Our aviation solutions are provided exclusively on a custom-order basis, so individual contact is required in every case.',
+    contactHeading: 'Get in touch',
+    contactRole: 'Doctor of Military Technical Sciences · Chief Executive Officer',
+    comingSoon: 'This page is under construction. Detailed content will be published soon.',
   },
   certificates: {
     subtitle: 'The certificates you earned for completing courses.',

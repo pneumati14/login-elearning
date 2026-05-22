@@ -85,6 +85,17 @@ const menuOpen = ref(false)
 const activePanel = ref('panel-1')
 const root = ref<HTMLElement | null>(null)
 
+// ── High Sensitivity Solutions dropdown ───────────────────────────
+// A header element kept separate from the hamburger menu — these are
+// not part of the standard service offering.
+const hssOpen = ref(false)
+const hssRoot = ref<HTMLElement | null>(null)
+const hssItems = [
+  { label: 'nav.hssHealth', to: '/high-sensitivity/health', icon: 'health' },
+  { label: 'nav.hssDefense', to: '/high-sensitivity/defense', icon: 'defense' },
+  { label: 'nav.hssAviation', to: '/high-sensitivity/aviation', icon: 'aviation' },
+] as const
+
 // ── Profile dropdown state ────────────────────────────────────────
 const profileOpen = ref(false)
 const profileRoot = ref<HTMLElement | null>(null)
@@ -102,6 +113,7 @@ function toggleMenu() {
   if (menuOpen.value) {
     activePanel.value = 'panel-1'
     profileOpen.value = false
+    hssOpen.value = false
   }
 }
 function closeMenu() {
@@ -115,10 +127,23 @@ function goBack(parent?: string) {
 }
 function toggleProfile() {
   profileOpen.value = !profileOpen.value
-  if (profileOpen.value) menuOpen.value = false
+  if (profileOpen.value) {
+    menuOpen.value = false
+    hssOpen.value = false
+  }
 }
 function closeProfile() {
   profileOpen.value = false
+}
+function toggleHss() {
+  hssOpen.value = !hssOpen.value
+  if (hssOpen.value) {
+    menuOpen.value = false
+    profileOpen.value = false
+  }
+}
+function closeHss() {
+  hssOpen.value = false
 }
 async function logout() {
   closeProfile()
@@ -135,6 +160,9 @@ function onDocPointerDown(e: MouseEvent) {
   if (profileOpen.value && profileRoot.value && !profileRoot.value.contains(target)) {
     closeProfile()
   }
+  if (hssOpen.value && hssRoot.value && !hssRoot.value.contains(target)) {
+    closeHss()
+  }
 }
 
 onMounted(() => document.addEventListener('mousedown', onDocPointerDown))
@@ -147,59 +175,8 @@ const iconUrl = (name: string) => `/frontend-files/images/menu-images/${name}`
   <header class="header-primary sticky-top">
     <div class="container-fluid">
       <nav class="navbar justify-content-between">
-        <RouterLink class="navbar-brand" to="/" title="Login Autonom">
-          <img src="/frontend-files/images/logo.svg" class="img-fluid" alt="Login Autonom" />
-        </RouterLink>
-
-        <div class="header-actions">
-          <LanguageSwitcher />
-
-          <!-- ── Profile (top-right) ──────────────────────────────── -->
-          <div v-if="auth.isAuthenticated" ref="profileRoot" class="profile">
-            <button
-              type="button"
-              class="profile-toggle"
-              :class="{ open: profileOpen }"
-              :aria-expanded="profileOpen"
-              title="Profil"
-              @click="toggleProfile"
-            >
-              <span class="avatar">
-                <img v-if="avatarUrl" :src="avatarUrl" alt="" />
-                <span v-else class="avatar-initials">{{ initials }}</span>
-              </span>
-            </button>
-
-            <div v-if="profileOpen" class="profile-menu">
-              <div class="profile-head">
-                <span class="avatar avatar--lg">
-                  <img v-if="avatarUrl" :src="avatarUrl" alt="" />
-                  <span v-else class="avatar-initials">{{ initials }}</span>
-                </span>
-                <div class="profile-id">
-                  <span class="profile-name">{{ auth.user?.fullName }}</span>
-                  <span class="profile-email">{{ auth.user?.email }}</span>
-                </div>
-              </div>
-
-              <div class="profile-divider"></div>
-              <RouterLink to="/account" class="profile-link" @click="closeProfile">
-                {{ t('profile.myProfile') }}
-              </RouterLink>
-              <RouterLink to="/certificates" class="profile-link" @click="closeProfile">
-                {{ t('profile.myCertificates') }}
-              </RouterLink>
-
-              <div class="profile-divider"></div>
-              <button type="button" class="profile-logout" @click="logout">
-                {{ t('profile.logout') }}
-              </button>
-            </div>
-          </div>
-
-          <RouterLink v-else to="/login" class="login-btn">{{ t('profile.login') }}</RouterLink>
-
-          <!-- ── Hamburger menu ───────────────────────────────────── -->
+        <div class="header-left">
+          <!-- ── Hamburger menu (top-left) ─────────────────────────── -->
           <div ref="root" class="top-menu">
             <div class="dropdown">
               <a
@@ -212,7 +189,7 @@ const iconUrl = (name: string) => `/frontend-files/images/menu-images/${name}`
                 <svg viewBox="0 0 16 16"><use xlink:href="/frontend-files/images/icons.svg#menu"></use></svg>
               </a>
 
-              <div class="dropdown-menu dropdown-menu-end" :class="{ show: menuOpen }">
+              <div class="dropdown-menu" :class="{ show: menuOpen }">
                 <div
                   v-for="(panel, id) in panels"
                   :id="id"
@@ -270,6 +247,106 @@ const iconUrl = (name: string) => `/frontend-files/images/menu-images/${name}`
               </div>
             </div>
           </div>
+
+          <RouterLink class="navbar-brand" to="/" title="Login Autonom">
+            <img src="/frontend-files/images/logo.svg" class="img-fluid" alt="Login Autonom" />
+          </RouterLink>
+
+          <!-- ── High Sensitivity Solutions ───────────────────────────
+               Kept separate from the hamburger menu — not part of the
+               standard service offering. -->
+          <div ref="hssRoot" class="hss">
+            <button
+              type="button"
+              class="hss-toggle"
+              :class="{ open: hssOpen }"
+              :aria-expanded="hssOpen"
+              @click="toggleHss"
+            >
+              <svg class="hss-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 1.5 3.5 4.8v6.4c0 5.3 3.6 9.9 8.5 11.3 4.9-1.4 8.5-6 8.5-11.3V4.8L12 1.5z" />
+              </svg>
+              <span class="hss-label hss-label--full">{{ t('nav.hss') }}</span>
+              <span class="hss-label hss-label--short">{{ t('nav.hssShort') }}</span>
+              <span class="hss-caret" aria-hidden="true"></span>
+            </button>
+
+            <div v-if="hssOpen" class="hss-menu">
+              <RouterLink
+                v-for="item in hssItems"
+                :key="item.to"
+                :to="item.to"
+                class="hss-link"
+                @click="closeHss"
+              >
+                <span class="hss-link-icon" aria-hidden="true">
+                  <svg v-if="item.icon === 'health'" viewBox="0 0 24 24">
+                    <path
+                      d="M12 20.7C5.1 15.3 2 11.6 2 7.7 2 4.8 4.2 2.6 7 2.6 8.8 2.6 10.5 3.6 12 5.6 13.5 3.6 15.2 2.6 17 2.6 19.8 2.6 22 4.8 22 7.7 22 11.6 18.9 15.3 12 20.7Z"
+                    />
+                  </svg>
+                  <svg v-else-if="item.icon === 'defense'" viewBox="0 0 24 24">
+                    <path
+                      d="M12 2 19.5 4.8V11C19.5 16 16.3 19.7 12 21.2 7.7 19.7 4.5 16 4.5 11V4.8Z"
+                    />
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24">
+                    <path d="M2 21L23 12L2 3V10L17 12L2 14Z" />
+                  </svg>
+                </span>
+                {{ t(item.label) }}
+              </RouterLink>
+            </div>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <LanguageSwitcher />
+
+          <!-- ── Profile (top-right) ──────────────────────────────── -->
+          <div v-if="auth.isAuthenticated" ref="profileRoot" class="profile">
+            <button
+              type="button"
+              class="profile-toggle"
+              :class="{ open: profileOpen }"
+              :aria-expanded="profileOpen"
+              title="Profil"
+              @click="toggleProfile"
+            >
+              <span class="avatar">
+                <img v-if="avatarUrl" :src="avatarUrl" alt="" />
+                <span v-else class="avatar-initials">{{ initials }}</span>
+              </span>
+            </button>
+
+            <div v-if="profileOpen" class="profile-menu">
+              <div class="profile-head">
+                <span class="avatar avatar--lg">
+                  <img v-if="avatarUrl" :src="avatarUrl" alt="" />
+                  <span v-else class="avatar-initials">{{ initials }}</span>
+                </span>
+                <div class="profile-id">
+                  <span class="profile-name">{{ auth.user?.fullName }}</span>
+                  <span class="profile-email">{{ auth.user?.email }}</span>
+                </div>
+              </div>
+
+              <div class="profile-divider"></div>
+              <RouterLink to="/account" class="profile-link" @click="closeProfile">
+                {{ t('profile.myProfile') }}
+              </RouterLink>
+              <RouterLink to="/certificates" class="profile-link" @click="closeProfile">
+                {{ t('profile.myCertificates') }}
+              </RouterLink>
+
+              <div class="profile-divider"></div>
+              <button type="button" class="profile-logout" @click="logout">
+                {{ t('profile.logout') }}
+              </button>
+            </div>
+          </div>
+
+          <RouterLink v-else to="/login" class="login-btn">{{ t('profile.login') }}</RouterLink>
         </div>
       </nav>
     </div>
@@ -277,20 +354,22 @@ const iconUrl = (name: string) => `/frontend-files/images/menu-images/${name}`
 </template>
 
 <style scoped>
+.header-left,
 .header-actions {
   display: flex;
   align-items: center;
   gap: 0.7rem;
 }
 
-/* The dropdown panel is positioned without Popper, so pin it under the toggler. */
+/* The dropdown panel is positioned without Popper, so pin it under the toggler.
+   The hamburger lives on the left, so the panel opens from the left edge. */
 .top-menu .dropdown {
   position: relative;
 }
 .top-menu .dropdown-menu {
   top: 100%;
-  right: 0;
-  left: auto;
+  left: 0;
+  right: auto;
   margin-top: 0;
 }
 .top-menu .dropdown-item {
@@ -299,9 +378,135 @@ const iconUrl = (name: string) => `/frontend-files/images/menu-images/${name}`
 .top-menu .dropdown-item .icon-right {
   margin-left: auto;
 }
+
+/* Slightly enlarged hamburger icon. */
+.top-menu .menu-toggler svg {
+  width: 30px;
+  height: 30px;
+}
+
 .header-primary .navbar-brand img {
   height: 38px;
   width: auto;
+}
+
+/* ── High Sensitivity Solutions ────────────────────────────────────
+   A premium, brand-coloured pill that stands apart from the standard
+   nav — a gradient in the brand red with a soft glow and a shield mark. */
+.hss {
+  position: relative;
+}
+
+.hss-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.1rem;
+  background: linear-gradient(135deg, var(--login-primary, #ed2044) 0%, #b3122f 100%);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 100vw;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(237, 32, 68, 0.4);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    filter 0.15s ease;
+}
+
+.hss-toggle:hover,
+.hss-toggle.open {
+  transform: translateY(-1px);
+  box-shadow: 0 9px 26px rgba(237, 32, 68, 0.55);
+  filter: brightness(1.07);
+}
+
+.hss-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  fill: currentColor;
+}
+
+.hss-label--short {
+  display: none;
+}
+
+.hss-caret {
+  width: 0;
+  height: 0;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  transition: transform 0.15s ease;
+}
+
+.hss-toggle.open .hss-caret {
+  transform: rotate(180deg);
+}
+
+.hss-menu {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  left: 0;
+  min-width: 210px;
+  padding: 0.5rem;
+  background: #fff;
+  border-top: 3px solid var(--login-primary, #ed2044);
+  border-radius: 0.75rem;
+  box-shadow: 0 18px 44px rgba(12, 28, 64, 0.2);
+  z-index: 1100;
+}
+
+.hss-link {
+  display: flex;
+  align-items: center;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.5rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.hss-link-icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  margin-right: 0.6rem;
+  flex-shrink: 0;
+}
+
+.hss-link-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.hss-link:hover {
+  background: #fdeef1;
+  color: var(--login-primary, #ed2044);
+}
+
+/* On narrow screens the full label would crowd the header — show "HSS". */
+@media (max-width: 767.98px) {
+  .hss-label--full {
+    display: none;
+  }
+  .hss-label--short {
+    display: inline;
+  }
+  .hss-toggle {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.82rem;
+  }
+  .top-menu .menu-toggler svg {
+    width: 26px;
+    height: 26px;
+  }
 }
 
 /* ── Profile dropdown ──────────────────────────────────────────── */
@@ -429,12 +634,15 @@ const iconUrl = (name: string) => `/frontend-files/images/menu-images/${name}`
   background: #fdeef1;
 }
 
+/* Deliberately understated — a quiet text link, not a loud filled button. */
 .login-btn {
-  padding: 0.5rem 1.1rem;
-  background: var(--login-primary, #ed2044);
-  border-radius: 0.5rem;
+  padding: 0.4rem 0.3rem;
   color: #fff;
   font-size: 0.92rem;
   font-weight: 700;
+}
+
+.login-btn:hover {
+  text-decoration: underline;
 }
 </style>

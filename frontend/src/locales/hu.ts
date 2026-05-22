@@ -48,6 +48,23 @@ export default {
     adminPublications: 'Publikációk',
     adminPositions: 'Pozíciók',
     back: 'vissza',
+    hss: 'High Sensitivity Solutions',
+    hssShort: 'HSS',
+    hssHealth: 'Health',
+    hssDefense: 'Defense',
+    hssAviation: 'Aviation',
+  },
+  highSensitivity: {
+    eyebrow: 'High Sensitivity Solutions',
+    introHealth:
+      'Az egészségügyi megoldásainkat kizárólag egyedi megrendelés alapján nyújtjuk, ezért minden esetben külön kapcsolatfelvétel szükséges.',
+    introDefense:
+      'Defense megoldásainkat kizárólag egyedi megrendelés alapján nyújtjuk, ezért minden esetben külön kapcsolatfelvétel szükséges.',
+    introAviation:
+      'Aviation iparági megoldásainkat kizárólag egyedi megrendelés alapján nyújtjuk, ezért minden esetben külön kapcsolatfelvétel szükséges.',
+    contactHeading: 'Kapcsolatfelvétel',
+    contactRole: 'Katonai műszaki tudományok doktora · ügyvezető igazgató',
+    comingSoon: 'Ez az oldal fejlesztés alatt áll. A részletes tartalom hamarosan elérhető lesz.',
   },
   certificates: {
     subtitle: 'A sikeresen elvégzett kurzusokért kapott okleveleid.',
