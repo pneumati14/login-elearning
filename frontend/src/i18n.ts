@@ -8,13 +8,14 @@ const STORAGE_KEY = 'app-locale'
 
 function initialLocale(): AppLocale {
   const saved = localStorage.getItem(STORAGE_KEY)
-  return saved === 'en' || saved === 'hu' ? saved : 'hu'
+  // No saved choice → default to English.
+  return saved === 'en' || saved === 'hu' ? saved : 'en'
 }
 
 export const i18n = createI18n({
   legacy: false,
   locale: initialLocale(),
-  fallbackLocale: 'hu',
+  fallbackLocale: 'en',
   messages: { hu, en },
 })
 

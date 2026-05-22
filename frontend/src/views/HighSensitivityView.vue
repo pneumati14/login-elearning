@@ -70,7 +70,7 @@ const telHref = (phone: string) => `tel:${phone.replace(/\s+/g, '')}`
             />
           </svg>
 
-          <!-- Defense — a shield with a star. -->
+          <!-- Defense — a layered, double-outline shield. -->
           <svg v-else viewBox="0 0 160 160" class="hss-art-svg">
             <circle class="art-disc" cx="80" cy="80" r="66" />
             <path
@@ -78,9 +78,8 @@ const telHref = (phone: string) => `tel:${phone.replace(/\s+/g, '')}`
               d="M80 24 L128 41 V80 C128 109 108 129 80 140 C52 129 32 109 32 80 V41 Z"
             />
             <path
-              class="art-accent-fill"
-              transform="translate(49 55) scale(2.6)"
-              d="M12 2 14.9 8.6 22 9.3 16.6 14 18.3 21 12 17.2 5.7 21 7.4 14 2 9.3 9.1 8.6Z"
+              class="art-accent"
+              d="M80 39 L114 52 V80 C114 102 98 118 80 126 C62 118 46 102 46 80 V52 Z"
             />
           </svg>
         </div>
@@ -250,10 +249,6 @@ const telHref = (phone: string) => `tel:${phone.replace(/\s+/g, '')}`
 
 .art-fill {
   fill: var(--login-secondary, #0c1c40);
-}
-
-.art-accent-fill {
-  fill: var(--login-primary, #ed2044);
 }
 
 .art-dot {
