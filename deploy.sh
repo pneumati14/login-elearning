@@ -111,29 +111,47 @@ done
 
 # wait until the backend can run a console command
 for i in $(seq 1 30); do
-  dc exec -T backend php bin/console --version >/dev/null 2>&1 && break
+  dc exec -T --user www-data backend php bin/console --version >/dev/null 2>&1 && break
   [ "$i" -eq 30 ] && { echo "ERROR: backend is not responding" >&2; exit 1; }
   sleep 2
 done
 
 # ── 5. Database migrations ───────────────────────────────────────────
 log "Running database migrations"
-dc exec -T backend php bin/console doctrine:migrations:migrate \
+# Run as www-data (the php-fpm user) so any cache the kernel warms is
+# owned by www-data — not root, which php-fpm could not then rewrite.
+dc exec -T --user www-data backend php bin/console doctrine:migrations:migrate \
   --no-interaction --allow-no-migration
 
 # ── 6. Health check ──────────────────────────────────────────────────
 log "Health check"
 HOST="$(env_get DEFAULT_SNI)"; [ -z "$HOST" ] && HOST="localhost"
 HTTPS_PORT="$(env_get HTTPS_PORT)"; [ -z "$HTTPS_PORT" ] && HTTPS_PORT="443"
-code="$(curl -sk -o /dev/null -w '%{http_code}' \
-  --resolve "$HOST:$HTTPS_PORT:127.0.0.1" \
-  "https://$HOST:$HTTPS_PORT/" || true)"
-if [ "$code" = "200" ] || [ "$code" = "304" ]; then
-  echo "  site responded with HTTP $code"
-else
-  echo "  WARNING: site returned HTTP '$code' — inspect:  ./deploy.sh logs" >&2
-  echo "           docker compose -f docker-compose.yml -f $OVERLAY --env-file $ENV_FILE logs" >&2
+
+probe() {  # probe <path> → prints the HTTP status code (000 on failure)
+  curl -sk -o /dev/null -w '%{http_code}' \
+    --resolve "$HOST:$HTTPS_PORT:127.0.0.1" \
+    "https://$HOST:$HTTPS_PORT$1" 2>/dev/null || echo "000"
+}
+
+front_code="$(probe /)"
+api_code="$(probe /api/courses)"
+echo "  frontend  /            -> HTTP $front_code"
+echo "  API       /api/courses -> HTTP $api_code"
+
+healthy=true
+case "$front_code" in 200|304) ;; *) healthy=false ;; esac
+# Any non-5xx, non-000 reply means the Symfony kernel booted (401/404 ok).
+case "$api_code" in 5*|000|"") healthy=false ;; esac
+
+if [ "$healthy" != true ]; then
+  echo >&2
+  echo "ERROR: health check failed — the $TARGET stack is running but not" >&2
+  echo "       serving correctly. Inspect the backend logs:" >&2
+  echo "       docker compose -f docker-compose.yml -f $OVERLAY --env-file $ENV_FILE logs backend" >&2
+  exit 1
 fi
+echo "  health check passed"
 
 # ── Done ─────────────────────────────────────────────────────────────
 log "Deploy to $TARGET complete"

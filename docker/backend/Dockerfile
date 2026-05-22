@@ -44,6 +44,12 @@ RUN if [ -f composer.json ]; then \
         composer install --no-interaction --no-progress --prefer-dist; \
     fi
 
+# php-fpm runs as www-data. Symfony writes its cache and logs under var/
+# at runtime (e.g. it warms the prod cache on the first request), so var/
+# must be owned by www-data — otherwise those writes fail with EACCES and
+# every request returns HTTP 500.
+RUN mkdir -p var && chown -R www-data:www-data var
+
 EXPOSE 9000
 
 CMD ["php-fpm"]
