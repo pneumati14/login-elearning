@@ -21,6 +21,7 @@ const languages: Lang[] = [
   { code: 'az', flag: '/frontend-files/images/flags/az.svg', label: 'Azərbaycan' },
   { code: 'tr', flag: '/frontend-files/images/flags/tr.svg', label: 'Türkçe' },
   { code: 'pl', flag: '/frontend-files/images/flags/pl.svg', label: 'Polski' },
+  { code: 'es', flag: '/frontend-files/images/flags/es.svg', label: 'Español' },
 ]
 
 const open = ref(false)

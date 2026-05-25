@@ -12,6 +12,7 @@ export default {
     pt: 'Portugiesisch',
     tr: 'Türkisch',
     pl: 'Polnisch',
+    es: 'Spanisch',
     optional: '(optional)',
   },
   course: {

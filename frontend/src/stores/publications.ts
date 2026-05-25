@@ -61,6 +61,7 @@ export const usePublicationsStore = defineStore('publications', () => {
     formData.append('titlePt', fields.title.pt ?? '')
     formData.append('titleTr', fields.title.tr ?? '')
     formData.append('titlePl', fields.title.pl ?? '')
+    formData.append('titleEs', fields.title.es ?? '')
     formData.append('topicEn', fields.topic.en)
     formData.append('topicHu', fields.topic.hu ?? '')
     formData.append('topicAz', fields.topic.az ?? '')
@@ -68,6 +69,7 @@ export const usePublicationsStore = defineStore('publications', () => {
     formData.append('topicPt', fields.topic.pt ?? '')
     formData.append('topicTr', fields.topic.tr ?? '')
     formData.append('topicPl', fields.topic.pl ?? '')
+    formData.append('topicEs', fields.topic.es ?? '')
     formData.append('authorEn', fields.author.en)
     formData.append('authorHu', fields.author.hu ?? '')
     formData.append('authorAz', fields.author.az ?? '')
@@ -75,6 +77,7 @@ export const usePublicationsStore = defineStore('publications', () => {
     formData.append('authorPt', fields.author.pt ?? '')
     formData.append('authorTr', fields.author.tr ?? '')
     formData.append('authorPl', fields.author.pl ?? '')
+    formData.append('authorEs', fields.author.es ?? '')
     formData.append('descriptionEn', fields.description.en)
     formData.append('descriptionHu', fields.description.hu ?? '')
     formData.append('descriptionAz', fields.description.az ?? '')
@@ -82,6 +85,7 @@ export const usePublicationsStore = defineStore('publications', () => {
     formData.append('descriptionPt', fields.description.pt ?? '')
     formData.append('descriptionTr', fields.description.tr ?? '')
     formData.append('descriptionPl', fields.description.pl ?? '')
+    formData.append('descriptionEs', fields.description.es ?? '')
     formData.append('file', file)
 
     try {
@@ -121,6 +125,7 @@ export const usePublicationsStore = defineStore('publications', () => {
     formData.append('titlePt', fields.title.pt ?? '')
     formData.append('titleTr', fields.title.tr ?? '')
     formData.append('titlePl', fields.title.pl ?? '')
+    formData.append('titleEs', fields.title.es ?? '')
     formData.append('topicEn', fields.topic.en)
     formData.append('topicHu', fields.topic.hu ?? '')
     formData.append('topicAz', fields.topic.az ?? '')
@@ -128,6 +133,7 @@ export const usePublicationsStore = defineStore('publications', () => {
     formData.append('topicPt', fields.topic.pt ?? '')
     formData.append('topicTr', fields.topic.tr ?? '')
     formData.append('topicPl', fields.topic.pl ?? '')
+    formData.append('topicEs', fields.topic.es ?? '')
     formData.append('authorEn', fields.author.en)
     formData.append('authorHu', fields.author.hu ?? '')
     formData.append('authorAz', fields.author.az ?? '')
@@ -135,6 +141,7 @@ export const usePublicationsStore = defineStore('publications', () => {
     formData.append('authorPt', fields.author.pt ?? '')
     formData.append('authorTr', fields.author.tr ?? '')
     formData.append('authorPl', fields.author.pl ?? '')
+    formData.append('authorEs', fields.author.es ?? '')
     formData.append('descriptionEn', fields.description.en)
     formData.append('descriptionHu', fields.description.hu ?? '')
     formData.append('descriptionAz', fields.description.az ?? '')
@@ -142,6 +149,7 @@ export const usePublicationsStore = defineStore('publications', () => {
     formData.append('descriptionPt', fields.description.pt ?? '')
     formData.append('descriptionTr', fields.description.tr ?? '')
     formData.append('descriptionPl', fields.description.pl ?? '')
+    formData.append('descriptionEs', fields.description.es ?? '')
     if (file) formData.append('file', file)
 
     try {

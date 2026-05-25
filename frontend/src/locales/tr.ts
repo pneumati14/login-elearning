@@ -12,6 +12,7 @@ export default {
     pt: 'Portekizce',
     tr: 'Türkçe',
     pl: 'Lehçe',
+    es: 'İspanyolca',
     optional: '(isteğe bağlı)',
   },
   course: {

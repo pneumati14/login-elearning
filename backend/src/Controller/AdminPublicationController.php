@@ -99,7 +99,7 @@ final class AdminPublicationController extends AbstractController
     }
 
     /**
-     * Reads `<key>En` / `<key>Hu` / `<key>Az` / `<key>De` / `<key>Pt` / `<key>Tr` / `<key>Pl` form fields into a LocalizedText.
+     * Reads `<key>En` / `<key>Hu` / `<key>Az` / `<key>De` / `<key>Pt` / `<key>Tr` / `<key>Pl` / `<key>Es` form fields into a LocalizedText.
      */
     private function applyLocalized(LocalizedText $field, Request $request, string $key): void
     {
@@ -110,7 +110,8 @@ final class AdminPublicationController extends AbstractController
         $pt = trim((string) $request->request->get($key.'Pt', ''));
         $tr = trim((string) $request->request->get($key.'Tr', ''));
         $pl = trim((string) $request->request->get($key.'Pl', ''));
-        $field->setEn($en)->setHu($hu)->setAz($az)->setDe($de)->setPt($pt)->setTr($tr)->setPl($pl);
+        $es = trim((string) $request->request->get($key.'Es', ''));
+        $field->setEn($en)->setHu($hu)->setAz($az)->setDe($de)->setPt($pt)->setTr($tr)->setPl($pl)->setEs($es);
     }
 
     /**

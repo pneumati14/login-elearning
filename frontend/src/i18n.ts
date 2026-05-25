@@ -6,8 +6,9 @@ import de from './locales/de'
 import pt from './locales/pt'
 import tr from './locales/tr'
 import pl from './locales/pl'
+import es from './locales/es'
 
-export type AppLocale = 'hu' | 'en' | 'az' | 'de' | 'pt' | 'tr' | 'pl'
+export type AppLocale = 'hu' | 'en' | 'az' | 'de' | 'pt' | 'tr' | 'pl' | 'es'
 
 const STORAGE_KEY = 'app-locale'
 
@@ -20,7 +21,8 @@ function initialLocale(): AppLocale {
     saved === 'de' ||
     saved === 'pt' ||
     saved === 'tr' ||
-    saved === 'pl'
+    saved === 'pl' ||
+    saved === 'es'
     ? saved
     : 'en'
 }
@@ -29,7 +31,7 @@ export const i18n = createI18n({
   legacy: false,
   locale: initialLocale(),
   fallbackLocale: 'en',
-  messages: { hu, en, az, de, pt, tr, pl },
+  messages: { hu, en, az, de, pt, tr, pl, es },
 })
 
 /** Switches the UI language and remembers the choice (works without an account). */

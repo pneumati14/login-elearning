@@ -18,6 +18,7 @@ const languages: { code: AppLocale; flag: string; label: string }[] = [
   { code: 'az', flag: '🇦🇿', label: 'Azərbaycan' },
   { code: 'tr', flag: '🇹🇷', label: 'Türkçe' },
   { code: 'pl', flag: '🇵🇱', label: 'Polski' },
+  { code: 'es', flag: '🇪🇸', label: 'Español' },
 ]
 
 function chooseLanguage(code: AppLocale) {

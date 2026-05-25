@@ -12,6 +12,7 @@ export default {
     pt: 'Portugál',
     tr: 'Török',
     pl: 'Lengyel',
+    es: 'Spanyol',
     optional: '(nem kötelező)',
   },
   course: {

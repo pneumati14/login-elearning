@@ -90,6 +90,16 @@ const { t } = useI18n()
         ></textarea>
         <input v-else v-model="model.pl" type="text" :placeholder="placeholder" />
       </label>
+      <label class="loc-cell">
+        <span class="loc-lang">{{ t('localized.es') }} <em>{{ t('localized.optional') }}</em></span>
+        <textarea
+          v-if="multiline"
+          v-model="model.es"
+          rows="3"
+          :placeholder="placeholder"
+        ></textarea>
+        <input v-else v-model="model.es" type="text" :placeholder="placeholder" />
+      </label>
     </div>
   </div>
 </template>

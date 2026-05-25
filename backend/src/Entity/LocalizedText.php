@@ -11,7 +11,7 @@ use Doctrine\ORM\Mapping as ORM;
  * English is the required base; other languages are optional and fall
  * back to English when not provided. Embedded into content entities, so
  * a field "title" becomes "title_en", "title_hu", "title_az", "title_de",
- * "title_pt", "title_tr" and "title_pl".
+ * "title_pt", "title_tr", "title_pl" and "title_es".
  */
 #[ORM\Embeddable]
 class LocalizedText
@@ -37,6 +37,9 @@ class LocalizedText
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $pl = null;
 
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $es = null;
+
     public function __construct(
         string $en = '',
         ?string $hu = null,
@@ -45,6 +48,7 @@ class LocalizedText
         ?string $pt = null,
         ?string $tr = null,
         ?string $pl = null,
+        ?string $es = null,
     ) {
         $this->en = $en;
         $this->setHu($hu);
@@ -53,6 +57,7 @@ class LocalizedText
         $this->setPt($pt);
         $this->setTr($tr);
         $this->setPl($pl);
+        $this->setEs($es);
     }
 
     public function getEn(): string
@@ -140,6 +145,18 @@ class LocalizedText
         return $this;
     }
 
+    public function getEs(): ?string
+    {
+        return $this->es;
+    }
+
+    public function setEs(?string $es): static
+    {
+        $this->es = (null !== $es && '' !== $es) ? $es : null;
+
+        return $this;
+    }
+
     /**
      * The text in the requested locale, falling back to English.
      */
@@ -163,12 +180,15 @@ class LocalizedText
         if ('pl' === $locale && null !== $this->pl) {
             return $this->pl;
         }
+        if ('es' === $locale && null !== $this->es) {
+            return $this->es;
+        }
 
         return $this->en;
     }
 
     /**
-     * @return array{en: string, hu: string|null, az: string|null, de: string|null, pt: string|null, tr: string|null, pl: string|null}
+     * @return array{en: string, hu: string|null, az: string|null, de: string|null, pt: string|null, tr: string|null, pl: string|null, es: string|null}
      */
     public function toArray(): array
     {
@@ -180,6 +200,7 @@ class LocalizedText
             'pt' => $this->pt,
             'tr' => $this->tr,
             'pl' => $this->pl,
+            'es' => $this->es,
         ];
     }
 }

@@ -12,6 +12,7 @@ export default {
     pt: 'Portuqalca',
     tr: 'Türkcə',
     pl: 'Polyakca',
+    es: 'İspanca',
     optional: '(məcburi deyil)',
   },
   course: {

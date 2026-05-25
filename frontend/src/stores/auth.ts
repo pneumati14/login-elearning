@@ -59,7 +59,8 @@ export const useAuthStore = defineStore('auth', () => {
       'de' === loc ||
       'pt' === loc ||
       'tr' === loc ||
-      'pl' === loc
+      'pl' === loc ||
+      'es' === loc
     ) {
       setLocale(loc)
     }

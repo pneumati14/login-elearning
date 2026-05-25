@@ -190,7 +190,7 @@ final class AdminCourseController extends AbstractController
     }
 
     /**
-     * Applies a multilingual { en, hu, az, de, pt, tr, pl } payload value onto a LocalizedText field.
+     * Applies a multilingual { en, hu, az, de, pt, tr, pl, es } payload value onto a LocalizedText field.
      */
     private function applyLocalized(LocalizedText $field, mixed $value): void
     {
@@ -201,7 +201,8 @@ final class AdminCourseController extends AbstractController
         $pt = \is_array($value) ? trim((string) ($value['pt'] ?? '')) : '';
         $tr = \is_array($value) ? trim((string) ($value['tr'] ?? '')) : '';
         $pl = \is_array($value) ? trim((string) ($value['pl'] ?? '')) : '';
-        $field->setEn($en)->setHu($hu)->setAz($az)->setDe($de)->setPt($pt)->setTr($tr)->setPl($pl);
+        $es = \is_array($value) ? trim((string) ($value['es'] ?? '')) : '';
+        $field->setEn($en)->setHu($hu)->setAz($az)->setDe($de)->setPt($pt)->setTr($tr)->setPl($pl)->setEs($es);
     }
 
     /**

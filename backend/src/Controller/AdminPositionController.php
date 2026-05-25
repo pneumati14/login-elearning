@@ -99,7 +99,8 @@ final class AdminPositionController extends AbstractController
         $pt = \is_array($value) ? trim((string) ($value['pt'] ?? '')) : '';
         $tr = \is_array($value) ? trim((string) ($value['tr'] ?? '')) : '';
         $pl = \is_array($value) ? trim((string) ($value['pl'] ?? '')) : '';
-        $field->setEn($en)->setHu($hu)->setAz($az)->setDe($de)->setPt($pt)->setTr($tr)->setPl($pl);
+        $es = \is_array($value) ? trim((string) ($value['es'] ?? '')) : '';
+        $field->setEn($en)->setHu($hu)->setAz($az)->setDe($de)->setPt($pt)->setTr($tr)->setPl($pl)->setEs($es);
     }
 
     /**

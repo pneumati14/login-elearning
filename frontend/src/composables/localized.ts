@@ -2,9 +2,9 @@ import { useI18n } from 'vue-i18n'
 
 /**
  * Admin-entered text stored in English (the required base), Hungarian,
- * Azerbaijani, German, Portuguese, Turkish and Polish (all optional).
- * When a language is missing it falls back to English. This is the shape
- * returned by the API.
+ * Azerbaijani, German, Portuguese, Turkish, Polish and Spanish (all
+ * optional). When a language is missing it falls back to English. This
+ * is the shape returned by the API.
  */
 export interface LocalizedText {
   en: string
@@ -14,6 +14,7 @@ export interface LocalizedText {
   pt: string | null
   tr: string | null
   pl: string | null
+  es: string | null
 }
 
 /** A form-editable multilingual value — optional languages normalised to strings. */
@@ -25,11 +26,12 @@ export interface LocalizedDraft {
   pt: string
   tr: string
   pl: string
+  es: string
 }
 
 /** A blank multilingual value for new-entry forms. */
 export function emptyLocalized(): LocalizedDraft {
-  return { en: '', hu: '', az: '', de: '', pt: '', tr: '', pl: '' }
+  return { en: '', hu: '', az: '', de: '', pt: '', tr: '', pl: '', es: '' }
 }
 
 /** A form-editable copy of a multilingual value from the API. */
@@ -42,6 +44,7 @@ export function toLocalizedDraft(field?: LocalizedText | null): LocalizedDraft {
     pt: field?.pt ?? '',
     tr: field?.tr ?? '',
     pl: field?.pl ?? '',
+    es: field?.es ?? '',
   }
 }
 
@@ -61,6 +64,7 @@ export function useLocalized() {
     if ('pt' === locale.value && field.pt) return field.pt
     if ('tr' === locale.value && field.tr) return field.tr
     if ('pl' === locale.value && field.pl) return field.pl
+    if ('es' === locale.value && field.es) return field.es
     return field.en
   }
 
