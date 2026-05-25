@@ -52,7 +52,15 @@ export const useAuthStore = defineStore('auth', () => {
   /** Applies the signed-in user's saved language to the UI. */
   function applyUserLocale(): void {
     const loc = user.value?.locale
-    if ('hu' === loc || 'en' === loc) {
+    if (
+      'hu' === loc ||
+      'en' === loc ||
+      'az' === loc ||
+      'de' === loc ||
+      'pt' === loc ||
+      'tr' === loc ||
+      'pl' === loc
+    ) {
       setLocale(loc)
     }
   }

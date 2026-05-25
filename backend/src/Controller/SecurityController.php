@@ -113,7 +113,7 @@ final class SecurityController extends AbstractController
         $payload = json_decode($request->getContent(), true);
         $locale = \is_array($payload) ? (string) ($payload['locale'] ?? '') : '';
 
-        if (!\in_array($locale, ['hu', 'en'], true)) {
+        if (!\in_array($locale, ['hu', 'en', 'az', 'de', 'pt', 'tr', 'pl'], true)) {
             return $this->json(['error' => 'Ismeretlen nyelv.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 

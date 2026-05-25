@@ -13,6 +13,11 @@ const { user } = storeToRefs(auth)
 const languages: { code: AppLocale; flag: string; label: string }[] = [
   { code: 'hu', flag: '🇭🇺', label: 'Magyar' },
   { code: 'en', flag: '🇬🇧', label: 'English' },
+  { code: 'de', flag: '🇩🇪', label: 'Deutsch' },
+  { code: 'pt', flag: '🇵🇹', label: 'Português' },
+  { code: 'az', flag: '🇦🇿', label: 'Azərbaycan' },
+  { code: 'tr', flag: '🇹🇷', label: 'Türkçe' },
+  { code: 'pl', flag: '🇵🇱', label: 'Polski' },
 ]
 
 function chooseLanguage(code: AppLocale) {

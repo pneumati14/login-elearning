@@ -16,6 +16,11 @@ const auth = useAuthStore()
 const languages: Lang[] = [
   { code: 'hu', flag: '/frontend-files/images/flags/hu.svg', label: 'Magyar' },
   { code: 'en', flag: '/frontend-files/images/flags/gb.svg', label: 'English' },
+  { code: 'de', flag: '/frontend-files/images/flags/de.svg', label: 'Deutsch' },
+  { code: 'pt', flag: '/frontend-files/images/flags/pt.svg', label: 'Português' },
+  { code: 'az', flag: '/frontend-files/images/flags/az.svg', label: 'Azərbaycan' },
+  { code: 'tr', flag: '/frontend-files/images/flags/tr.svg', label: 'Türkçe' },
+  { code: 'pl', flag: '/frontend-files/images/flags/pl.svg', label: 'Polski' },
 ]
 
 const open = ref(false)

@@ -7,6 +7,11 @@ export default {
   localized: {
     en: 'Angol',
     hu: 'Magyar',
+    az: 'Azeri',
+    de: 'Német',
+    pt: 'Portugál',
+    tr: 'Török',
+    pl: 'Lengyel',
     optional: '(nem kötelező)',
   },
   course: {

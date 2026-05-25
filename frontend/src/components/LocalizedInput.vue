@@ -40,6 +40,56 @@ const { t } = useI18n()
         ></textarea>
         <input v-else v-model="model.hu" type="text" :placeholder="placeholder" />
       </label>
+      <label class="loc-cell">
+        <span class="loc-lang">{{ t('localized.de') }} <em>{{ t('localized.optional') }}</em></span>
+        <textarea
+          v-if="multiline"
+          v-model="model.de"
+          rows="3"
+          :placeholder="placeholder"
+        ></textarea>
+        <input v-else v-model="model.de" type="text" :placeholder="placeholder" />
+      </label>
+      <label class="loc-cell">
+        <span class="loc-lang">{{ t('localized.pt') }} <em>{{ t('localized.optional') }}</em></span>
+        <textarea
+          v-if="multiline"
+          v-model="model.pt"
+          rows="3"
+          :placeholder="placeholder"
+        ></textarea>
+        <input v-else v-model="model.pt" type="text" :placeholder="placeholder" />
+      </label>
+      <label class="loc-cell">
+        <span class="loc-lang">{{ t('localized.az') }} <em>{{ t('localized.optional') }}</em></span>
+        <textarea
+          v-if="multiline"
+          v-model="model.az"
+          rows="3"
+          :placeholder="placeholder"
+        ></textarea>
+        <input v-else v-model="model.az" type="text" :placeholder="placeholder" />
+      </label>
+      <label class="loc-cell">
+        <span class="loc-lang">{{ t('localized.tr') }} <em>{{ t('localized.optional') }}</em></span>
+        <textarea
+          v-if="multiline"
+          v-model="model.tr"
+          rows="3"
+          :placeholder="placeholder"
+        ></textarea>
+        <input v-else v-model="model.tr" type="text" :placeholder="placeholder" />
+      </label>
+      <label class="loc-cell">
+        <span class="loc-lang">{{ t('localized.pl') }} <em>{{ t('localized.optional') }}</em></span>
+        <textarea
+          v-if="multiline"
+          v-model="model.pl"
+          rows="3"
+          :placeholder="placeholder"
+        ></textarea>
+        <input v-else v-model="model.pl" type="text" :placeholder="placeholder" />
+      </label>
     </div>
   </div>
 </template>
@@ -65,7 +115,7 @@ const { t } = useI18n()
 .loc-grid {
   display: grid;
   gap: 0.7rem;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .loc-cell {

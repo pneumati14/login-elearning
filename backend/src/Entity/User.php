@@ -41,7 +41,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $avatarPath = null;
 
-    /** The user's preferred UI language ('hu' or 'en'). */
+    /** The user's preferred UI language ('hu', 'en', 'az', 'de', 'pt', 'tr' or 'pl'). */
     #[ORM\Column(length: 5, options: ['default' => 'hu'])]
     private string $locale = 'hu';
 
