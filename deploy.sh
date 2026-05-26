@@ -128,21 +128,33 @@ log "Health check"
 HOST="$(env_get DEFAULT_SNI)"; [ -z "$HOST" ] && HOST="localhost"
 HTTPS_PORT="$(env_get HTTPS_PORT)"; [ -z "$HTTPS_PORT" ] && HTTPS_PORT="443"
 
-probe() {  # probe <path> → prints the HTTP status code (000 on failure)
-  curl -sk -o /dev/null -w '%{http_code}' \
+probe() {  # probe <path> → prints the HTTP status code (000 if the request never landed)
+  local code
+  code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 5 \
     --resolve "$HOST:$HTTPS_PORT:127.0.0.1" \
-    "https://$HOST:$HTTPS_PORT$1" 2>/dev/null || echo "000"
+    "https://$HOST:$HTTPS_PORT$1" 2>/dev/null)" || code="000"
+  printf '%s' "${code:-000}"
 }
 
-front_code="$(probe /)"
-api_code="$(probe /api/courses)"
+# Retry the health check for up to ~20 s. On a fresh domain Caddy is
+# still obtaining its Let's Encrypt cert just after `up`, and TLS
+# handshakes from localhost can briefly fail before the new cert loads.
+healthy=false
+for attempt in $(seq 1 10); do
+  front_code="$(probe /)"
+  api_code="$(probe /api/courses)"
+
+  ok=true
+  case "$front_code" in 200|304) ;; *) ok=false ;; esac
+  # Any non-5xx, non-000 reply means the Symfony kernel booted (401/404 ok).
+  case "$api_code" in 5*|000|"") ok=false ;; esac
+
+  if [ "$ok" = true ]; then healthy=true; break; fi
+  [ "$attempt" -lt 10 ] && sleep 2
+done
+
 echo "  frontend  /            -> HTTP $front_code"
 echo "  API       /api/courses -> HTTP $api_code"
-
-healthy=true
-case "$front_code" in 200|304) ;; *) healthy=false ;; esac
-# Any non-5xx, non-000 reply means the Symfony kernel booted (401/404 ok).
-case "$api_code" in 5*|000|"") healthy=false ;; esac
 
 if [ "$healthy" != true ]; then
   echo >&2
