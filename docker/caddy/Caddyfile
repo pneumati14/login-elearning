@@ -10,9 +10,9 @@
 # ─────────────────────────────────────────────────────────────────────
 
 {
-	# For a public domain, uncomment so Let's Encrypt can send
-	# certificate expiry / problem notifications (value from ACME_EMAIL).
-	# email {$ACME_EMAIL}
+	# Let's Encrypt sends certificate expiry / problem notifications
+	# here (empty value == no notifications, no other effect).
+	email {$ACME_EMAIL}
 
 	# Certificate served when a client connects without SNI — e.g. a
 	# browser opening the site by raw IP address.

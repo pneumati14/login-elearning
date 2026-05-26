@@ -289,7 +289,7 @@ and rolls out one environment at a time.
 
 ```bash
 ./deploy.sh staging       # build + deploy to staging  → https://178.105.197.49:8443
-./deploy.sh production    # build + deploy to live     → https://178.105.197.49
+./deploy.sh production    # build + deploy to live     → https://www.loginautonom.com
 ```
 
 Each run type-checks and lints the frontend, builds the images, starts
@@ -308,7 +308,7 @@ deploy **before** the running environment is replaced.
 edit code on the server
   → ./deploy.sh staging        and test at https://178.105.197.49:8443
   → git commit && git push     back up to GitHub
-  → ./deploy.sh production      go live at https://178.105.197.49
+  → ./deploy.sh production      go live at https://www.loginautonom.com
 ```
 
 staging and production are fully isolated: separate containers, separate
