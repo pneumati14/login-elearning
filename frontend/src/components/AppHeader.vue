@@ -73,6 +73,7 @@ const panels = computed<Record<string, Panel>>(() => {
         { label: t('nav.adminUsers'), icon: 'team-career.svg', type: 'route', to: '/admin/users' },
         { label: t('nav.adminPublications'), icon: 'publications.svg', type: 'route', to: '/admin/publications' },
         { label: t('nav.adminPositions'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/positions' },
+        { label: t('nav.adminCustomers'), icon: 'team-career.svg', type: 'route', to: '/admin/customers' },
       ],
     }
   }
