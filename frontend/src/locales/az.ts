@@ -285,6 +285,12 @@ export default {
   adminCustomers: {
     subtitle: 'Müştəriləri, faktura məlumatlarını və etibarlılıq müddətini izləyin.',
     newCustomer: 'Yeni müştəri',
+    colName: 'Şirkət',
+    colCountry: 'Ölkə',
+    colCity: 'Şəhər',
+    colSales: 'Təyin olunmuş satış',
+    colValidity: 'Etibarlılıq',
+    colActions: 'Əməliyyatlar',
     name: 'Ad',
     website: 'Veb sayt',
     taxNumber: 'VÖEN',

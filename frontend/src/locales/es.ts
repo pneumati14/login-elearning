@@ -285,6 +285,12 @@ export default {
   adminCustomers: {
     subtitle: 'Lleve un registro de clientes, datos de facturación y periodos de validez.',
     newCustomer: 'Nuevo cliente',
+    colName: 'Empresa',
+    colCountry: 'País',
+    colCity: 'Ciudad',
+    colSales: 'Comercial asignado',
+    colValidity: 'Validez',
+    colActions: 'Acciones',
     name: 'Nombre',
     website: 'Sitio web',
     taxNumber: 'NIF / CIF',

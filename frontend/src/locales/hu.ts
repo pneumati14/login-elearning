@@ -285,6 +285,12 @@ export default {
   adminCustomers: {
     subtitle: 'Tartsd nyilván az ügyfeleket, számlázási adatokat és érvényességi időszakot.',
     newCustomer: 'Új ügyfél',
+    colName: 'Cégnév',
+    colCountry: 'Ország',
+    colCity: 'Város',
+    colSales: 'Dedikált sales',
+    colValidity: 'Érvényesség',
+    colActions: 'Műveletek',
     name: 'Név',
     website: 'Weboldal',
     taxNumber: 'Adószám',

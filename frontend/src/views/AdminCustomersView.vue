@@ -15,6 +15,8 @@ import {
 } from '@/stores/customers'
 import { useUsersStore } from '@/stores/users'
 import AddressFieldset from '@/components/AddressFieldset.vue'
+import IconEdit from '@/components/icons/IconEdit.vue'
+import IconDelete from '@/components/icons/IconDelete.vue'
 
 const { t } = useI18n()
 const store = useCustomersStore()
@@ -28,11 +30,23 @@ const userOptions = computed(() =>
 )
 
 // ── New customer form ────────────────────────────────────────────────
+// Collapsed by default — the form only appears once the user clicks
+// "New customer", so the page opens straight on the customer list.
+const showNew = ref(false)
 const form = reactive<CustomerFields>(emptyCustomerFields())
 const billingSame = ref(true)
 const creating = ref(false)
 const createError = ref<string | null>(null)
 const createSuccess = ref<string | null>(null)
+
+function toggleNew() {
+  showNew.value = !showNew.value
+  if (showNew.value) {
+    resetForm()
+    createError.value = null
+    createSuccess.value = null
+  }
+}
 
 // ── Inline editor — one row open at a time ───────────────────────────
 const editingId = ref<number | null>(null)
@@ -212,6 +226,7 @@ async function onCreate() {
   if (result.ok) {
     createSuccess.value = t('adminCustomers.created')
     resetForm()
+    showNew.value = false
   } else {
     createError.value = result.error ?? t('adminCustomers.createFailed')
   }
@@ -286,16 +301,6 @@ function validityLabel(c: Customer): string {
   return `${formatDate(c.validFrom)} → ${formatDate(c.validUntil)}`
 }
 
-function addressLine(a: Address): string {
-  const parts: string[] = []
-  if (a.postalCode) parts.push(a.postalCode)
-  if (a.city) parts.push(a.city)
-  if (a.street) parts.push(a.street)
-  const tail = parts.join(', ')
-  if (a.country) return tail ? `${a.country} · ${tail}` : a.country
-  return tail
-}
-
 </script>
 
 <template>
@@ -307,9 +312,14 @@ function addressLine(a: Address): string {
         <p>{{ t('adminCustomers.subtitle') }}</p>
       </div>
 
-      <!-- ── New customer ─────────────────────────────────────────── -->
-      <form class="cust-panel" @submit.prevent="onCreate">
-        <h2>{{ t('adminCustomers.newCustomer') }}</h2>
+      <!-- ── New customer (shown only after clicking "New customer") ─ -->
+      <form v-if="showNew" class="cust-panel" @submit.prevent="onCreate">
+        <div class="cust-panel-head">
+          <h2>{{ t('adminCustomers.newCustomer') }}</h2>
+          <button type="button" class="btn-ghost" @click="toggleNew">
+            {{ t('adminUsers.cancel') }}
+          </button>
+        </div>
 
         <div class="grid">
           <label class="field field--wide">
@@ -373,12 +383,17 @@ function addressLine(a: Address): string {
       <div class="cust-panel">
         <div class="cust-list-head">
           <h2>{{ t('adminCustomers.existing') }}</h2>
-          <input
-            v-model="search"
-            type="search"
-            :placeholder="t('adminCustomers.searchPlaceholder')"
-            class="search"
-          />
+          <div class="cust-list-tools">
+            <input
+              v-model="search"
+              type="search"
+              :placeholder="t('adminCustomers.searchPlaceholder')"
+              class="search"
+            />
+            <button type="button" class="btn-submit btn-new" @click="toggleNew">
+              {{ showNew ? t('adminUsers.cancel') : '+ ' + t('adminCustomers.newCustomer') }}
+            </button>
+          </div>
         </div>
 
         <p v-if="loading" class="state">{{ t('adminCustomers.loading') }}</p>
@@ -394,40 +409,64 @@ function addressLine(a: Address): string {
 
         <p v-else-if="filtered.length === 0" class="state">{{ t('adminCustomers.noMatches') }}</p>
 
-        <ul v-else class="cust-rows">
-          <li v-for="c in filtered" :key="c.id" class="cust-row-wrap">
-            <div class="cust-row">
-              <div class="cust-row-main">
-                <span class="cust-row-title">{{ c.name }}</span>
-                <span class="cust-row-meta">
-                  <template v-if="c.email">{{ c.email }}</template>
-                  <template v-if="c.email && c.phone"> · </template>
-                  <template v-if="c.phone">{{ c.phone }}</template>
-                  <template v-if="(c.email || c.phone) && c.website"> · </template>
-                  <template v-if="c.website">{{ c.website }}</template>
-                </span>
-                <span v-if="addressLine(c.address)" class="cust-row-address">{{ addressLine(c.address) }}</span>
-                <span class="cust-row-sales">
-                  <strong>{{ t('adminCustomers.salesCurrent') }}:</strong> {{ currentSalesLabel(c) }}
-                </span>
-                <span class="cust-row-validity">{{ validityLabel(c) }}</span>
-              </div>
-              <div class="cust-row-actions">
-                <button
-                  type="button"
-                  class="btn-ghost"
-                  @click="editingId === c.id ? closeEdit() : openEdit(c)"
-                >
-                  {{ t('admin.edit') }}
-                </button>
-                <button type="button" class="btn-delete" @click="onDelete(c)">
-                  {{ t('admin.delete') }}
-                </button>
-              </div>
-            </div>
+        <div v-else class="cust-table-wrap">
+          <table class="cust-table">
+            <thead>
+              <tr>
+                <th>{{ t('adminCustomers.colName') }}</th>
+                <th>{{ t('adminCustomers.colCountry') }}</th>
+                <th>{{ t('adminCustomers.colCity') }}</th>
+                <th>{{ t('adminCustomers.colSales') }}</th>
+                <th>{{ t('adminCustomers.colValidity') }}</th>
+                <th class="col-actions"><span class="sr-only">{{ t('adminCustomers.colActions') }}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="c in filtered" :key="c.id">
+                <tr class="cust-tr" :class="{ 'is-open': editingId === c.id }">
+                  <td class="cell-name">
+                    <span class="cell-name-title">{{ c.name }}</span>
+                    <span v-if="c.email || c.phone || c.website" class="cell-name-sub">
+                      <template v-if="c.email">{{ c.email }}</template>
+                      <template v-if="c.email && c.phone"> · </template>
+                      <template v-if="c.phone">{{ c.phone }}</template>
+                      <template v-if="(c.email || c.phone) && c.website"> · </template>
+                      <template v-if="c.website">{{ c.website }}</template>
+                    </span>
+                  </td>
+                  <td>{{ c.address.country || '—' }}</td>
+                  <td>{{ c.address.city || '—' }}</td>
+                  <td>{{ currentSalesLabel(c) }}</td>
+                  <td class="cell-validity">{{ validityLabel(c) }}</td>
+                  <td class="col-actions">
+                    <div class="cust-row-actions">
+                      <button
+                        type="button"
+                        class="btn-icon"
+                        :class="{ 'is-active': editingId === c.id }"
+                        :title="t('admin.edit')"
+                        :aria-label="t('admin.edit')"
+                        @click="editingId === c.id ? closeEdit() : openEdit(c)"
+                      >
+                        <IconEdit />
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-icon btn-icon--danger"
+                        :title="t('admin.delete')"
+                        :aria-label="t('admin.delete')"
+                        @click="onDelete(c)"
+                      >
+                        <IconDelete />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
 
-            <!-- Inline editor for the selected row. -->
-            <div v-if="editingId === c.id" class="cust-edit">
+                <!-- Inline editor for the selected row, full width. -->
+                <tr v-if="editingId === c.id" class="cust-edit-row">
+                  <td :colspan="6">
+                    <div class="cust-edit">
               <div class="grid">
                 <label class="field field--wide">
                   <span>{{ t('adminCustomers.name') }} *</span>
@@ -506,11 +545,23 @@ function addressLine(a: Address): string {
                         <span v-if="a.notes" class="sales-row-notes">{{ a.notes }}</span>
                       </div>
                       <div class="sales-row-actions">
-                        <button type="button" class="btn-ghost" @click="openEditAssignment(a)">
-                          {{ t('admin.edit') }}
+                        <button
+                          type="button"
+                          class="btn-icon"
+                          :title="t('admin.edit')"
+                          :aria-label="t('admin.edit')"
+                          @click="openEditAssignment(a)"
+                        >
+                          <IconEdit />
                         </button>
-                        <button type="button" class="btn-delete" @click="onDeleteAssignment(c.id, a)">
-                          {{ t('admin.delete') }}
+                        <button
+                          type="button"
+                          class="btn-icon btn-icon--danger"
+                          :title="t('admin.delete')"
+                          :aria-label="t('admin.delete')"
+                          @click="onDeleteAssignment(c.id, a)"
+                        >
+                          <IconDelete />
                         </button>
                       </div>
                     </div>
@@ -598,9 +649,13 @@ function addressLine(a: Address): string {
                   </button>
                 </div>
               </fieldset>
-            </div>
-          </li>
-        </ul>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </section>
@@ -663,6 +718,31 @@ function addressLine(a: Address): string {
 }
 
 .cust-list-head h2 {
+  margin: 0;
+}
+
+.cust-list-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.btn-new {
+  white-space: nowrap;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.9rem;
+}
+
+.cust-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.3rem;
+}
+
+.cust-panel-head h2 {
   margin: 0;
 }
 
@@ -750,59 +830,85 @@ function addressLine(a: Address): string {
   cursor: progress;
 }
 
-.cust-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  margin: 1.1rem 0 0;
-  padding: 0;
-  list-style: none;
+.cust-table-wrap {
+  margin-top: 1.1rem;
+  overflow-x: auto;
 }
 
-.cust-row-wrap {
-  background: #f7f8fb;
-  border-radius: 0.7rem;
+.cust-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
 }
 
-.cust-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.9rem 1.1rem;
-}
-
-.cust-row-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-}
-
-.cust-row-title {
-  color: var(--login-secondary, #0c1c40);
-  font-size: 1.02rem;
-  font-weight: 700;
-}
-
-.cust-row-meta {
+.cust-table thead th {
+  padding: 0.6rem 0.85rem;
+  text-align: left;
   color: #8b94a6;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 700;
-  word-break: break-word;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  border-bottom: 2px solid #e3e7ee;
 }
 
-.cust-row-validity {
+.cust-tr > td {
+  padding: 0.7rem 0.85rem;
   color: #545f71;
+  vertical-align: middle;
+  border-bottom: 1px solid #eef1f6;
+}
+
+.cust-tr:hover > td {
+  background: #f7f8fb;
+}
+
+.cust-tr.is-open > td {
+  background: #f7f8fb;
+  border-bottom-color: transparent;
+}
+
+.cell-name-title {
+  display: block;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.cell-name-sub {
+  display: block;
+  margin-top: 0.1rem;
+  color: #8b94a6;
   font-size: 0.78rem;
   font-weight: 600;
+  word-break: break-word;
 }
 
-.cust-row-address {
-  color: #545f71;
-  font-size: 0.82rem;
-  font-weight: 500;
-  word-break: break-word;
+.cell-validity {
+  white-space: nowrap;
+}
+
+.col-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cust-edit-row > td {
+  padding: 0;
+  background: #f7f8fb;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .addr-block {
@@ -991,10 +1097,48 @@ function addressLine(a: Address): string {
   color: #fff;
 }
 
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  background: #fff;
+  border: 1px solid #d4dae6;
+  border-radius: 0.45rem;
+  color: #545f71;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.btn-icon:hover {
+  border-color: var(--login-secondary, #0c1c40);
+  color: var(--login-secondary, #0c1c40);
+}
+
+.btn-icon.is-active {
+  border-color: var(--login-secondary, #0c1c40);
+  color: var(--login-secondary, #0c1c40);
+  background: #eef1f6;
+}
+
+.btn-icon--danger:hover {
+  background: var(--login-primary, #ed2044);
+  border-color: var(--login-primary, #ed2044);
+  color: #fff;
+}
+
+.btn-icon:focus-visible {
+  outline: 2px solid var(--login-primary, #ed2044);
+  outline-offset: 1px;
+}
+
 .cust-edit {
-  margin: 0 1.1rem;
-  padding: 1.2rem 0 1.3rem;
-  border-top: 1px solid #e3e7ee;
+  padding: 1.2rem 1.1rem 1.4rem;
 }
 
 .cust-edit-actions {
@@ -1030,11 +1174,6 @@ function addressLine(a: Address): string {
 @media (max-width: 767.98px) {
   .grid {
     grid-template-columns: 1fr;
-  }
-
-  .cust-row {
-    flex-direction: column;
-    align-items: flex-start;
   }
 }
 </style>

@@ -285,6 +285,12 @@ export default {
   adminCustomers: {
     subtitle: 'Keep track of customers, billing details and validity periods.',
     newCustomer: 'New customer',
+    colName: 'Company',
+    colCountry: 'Country',
+    colCity: 'City',
+    colSales: 'Dedicated sales',
+    colValidity: 'Validity',
+    colActions: 'Actions',
     name: 'Name',
     website: 'Website',
     taxNumber: 'Tax number',

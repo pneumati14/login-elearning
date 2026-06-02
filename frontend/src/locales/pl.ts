@@ -285,6 +285,12 @@ export default {
   adminCustomers: {
     subtitle: 'Prowadź ewidencję klientów, danych do faktur i okresów ważności.',
     newCustomer: 'Nowy klient',
+    colName: 'Firma',
+    colCountry: 'Kraj',
+    colCity: 'Miasto',
+    colSales: 'Dedykowany handlowiec',
+    colValidity: 'Ważność',
+    colActions: 'Akcje',
     name: 'Nazwa',
     website: 'Strona WWW',
     taxNumber: 'NIP',

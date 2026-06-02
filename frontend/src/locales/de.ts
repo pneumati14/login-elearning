@@ -285,6 +285,12 @@ export default {
   adminCustomers: {
     subtitle: 'Verwalten Sie Kunden, Rechnungsdaten und Gültigkeitszeiträume.',
     newCustomer: 'Neuer Kunde',
+    colName: 'Firma',
+    colCountry: 'Land',
+    colCity: 'Stadt',
+    colSales: 'Zuständiger Vertrieb',
+    colValidity: 'Gültigkeit',
+    colActions: 'Aktionen',
     name: 'Name',
     website: 'Website',
     taxNumber: 'Steuernummer',

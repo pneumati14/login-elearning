@@ -285,6 +285,12 @@ export default {
   adminCustomers: {
     subtitle: 'Acompanhe clientes, dados de faturação e períodos de validade.',
     newCustomer: 'Novo cliente',
+    colName: 'Empresa',
+    colCountry: 'País',
+    colCity: 'Cidade',
+    colSales: 'Comercial dedicado',
+    colValidity: 'Validade',
+    colActions: 'Ações',
     name: 'Nome',
     website: 'Website',
     taxNumber: 'NIF',

@@ -285,6 +285,12 @@ export default {
   adminCustomers: {
     subtitle: 'Müşterileri, fatura bilgilerini ve geçerlilik sürelerini takip edin.',
     newCustomer: 'Yeni müşteri',
+    colName: 'Şirket',
+    colCountry: 'Ülke',
+    colCity: 'Şehir',
+    colSales: 'Atanmış satış',
+    colValidity: 'Geçerlilik',
+    colActions: 'İşlemler',
     name: 'Ad',
     website: 'Web sitesi',
     taxNumber: 'Vergi numarası',
