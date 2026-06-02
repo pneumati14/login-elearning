@@ -86,6 +86,25 @@ export function addressesEqual(a: Address, b: Address): boolean {
     && a.street === b.street
 }
 
+// Normalize empty strings to null before sending — the API treats null and
+// empty string the same, but null on the wire is the simpler invariant. When
+// `copyBilling` is set, the billing address mirrors the main address.
+export function toCustomerPayload(f: CustomerFields, copyBilling: boolean): CustomerFields {
+  const norm = (v: string | null): string | null => (null === v || '' === v.trim() ? null : v.trim())
+  return {
+    name: f.name.trim(),
+    address: { ...f.address },
+    website: norm(f.website),
+    billingAddress: copyBilling ? { ...f.address } : { ...f.billingAddress },
+    taxNumber: norm(f.taxNumber),
+    email: norm(f.email),
+    phone: norm(f.phone),
+    notes: norm(f.notes),
+    validFrom: norm(f.validFrom),
+    validUntil: norm(f.validUntil),
+  }
+}
+
 export const useCustomersStore = defineStore('customers', () => {
   const customers = ref<Customer[]>([])
   const loading = ref(false)
@@ -110,6 +129,32 @@ export const useCustomersStore = defineStore('customers', () => {
       error.value = e instanceof Error ? e.message : 'Ismeretlen hiba történt.'
     } finally {
       loading.value = false
+    }
+  }
+
+  // Fetch a single customer by id — used by the detail view, which may be
+  // deep-linked without the list ever having loaded. Refreshes the cached
+  // list entry if present so list and detail stay in sync.
+  async function fetchCustomer(id: number): Promise<Customer | null> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${id}`, {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      })
+      if (!response.ok) return null
+
+      const data = (await response.json()) as Customer
+      // Upsert into the cache so the list and the detail view share one
+      // reactive source — mutations (incl. sales assignments) stay in sync.
+      const idx = customers.value.findIndex((c) => c.id === id)
+      if (-1 !== idx) {
+        customers.value = customers.value.map((c) => (c.id === id ? data : c))
+      } else {
+        customers.value = [...customers.value, data]
+      }
+      return data
+    } catch {
+      return null
     }
   }
 
@@ -271,6 +316,7 @@ export const useCustomersStore = defineStore('customers', () => {
     loading,
     error,
     fetchCustomers,
+    fetchCustomer,
     createCustomer,
     updateCustomer,
     deleteCustomer,
