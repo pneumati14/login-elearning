@@ -415,7 +415,7 @@ export default {
     actConfirmDelete: 'Bu fəaliyyəti silmək istəyirsiniz?',
   },
   adminTasks: {
-    subtitle: 'Açıq və gözlənilən tapşırıqların aciliyə görə icmalı.',
+    subtitle: 'Müştərilər üzrə qeydə alınan fəaliyyətlər — statusa görə süzün.',
     scopeMine: 'Mənim tapşırıqlarım',
     scopeAll: 'Bütün tapşırıqlar',
     openTotal: 'açıq',

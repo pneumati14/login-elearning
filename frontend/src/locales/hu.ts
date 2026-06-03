@@ -415,7 +415,7 @@ export default {
     actConfirmDelete: 'Biztosan törlöd ezt a tevékenységet?',
   },
   adminTasks: {
-    subtitle: 'A nyitott és elvégzendő feladatok áttekintése sürgősség szerint.',
+    subtitle: 'Az ügyfeleknél felvett események áttekintése — szűrhető státusz szerint.',
     scopeMine: 'Saját feladataim',
     scopeAll: 'Minden feladat',
     openTotal: 'nyitott',

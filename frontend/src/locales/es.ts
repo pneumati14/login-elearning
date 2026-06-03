@@ -415,7 +415,7 @@ export default {
     actConfirmDelete: '¿Eliminar esta actividad?',
   },
   adminTasks: {
-    subtitle: 'Resumen de tareas abiertas y pendientes por urgencia.',
+    subtitle: 'Actividades registradas en los clientes: filtra por estado.',
     scopeMine: 'Mis tareas',
     scopeAll: 'Todas las tareas',
     openTotal: 'abiertas',

@@ -415,7 +415,7 @@ export default {
     actConfirmDelete: 'Bu etkinlik silinsin mi?',
   },
   adminTasks: {
-    subtitle: 'Açık ve yaklaşan görevlerin aciliyete göre özeti.',
+    subtitle: 'Müşterilerde kaydedilen etkinlikler — duruma göre filtreleyin.',
     scopeMine: 'Görevlerim',
     scopeAll: 'Tüm görevler',
     openTotal: 'açık',

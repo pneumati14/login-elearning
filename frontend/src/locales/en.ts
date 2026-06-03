@@ -415,7 +415,7 @@ export default {
     actConfirmDelete: 'Delete this activity?',
   },
   adminTasks: {
-    subtitle: 'Overview of open and upcoming tasks by urgency.',
+    subtitle: 'Activities logged across customers — filter by status.',
     scopeMine: 'My tasks',
     scopeAll: 'All tasks',
     openTotal: 'open',

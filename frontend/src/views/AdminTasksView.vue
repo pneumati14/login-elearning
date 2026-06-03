@@ -44,20 +44,25 @@ const URGENCIES: { key: Urgency; color: string }[] = [
 // Open / closed across every activity type.
 const openItems = computed(() => dashboardTasks.value.filter((tk) => null === tk.completedAt))
 const closedItems = computed(() => dashboardTasks.value.filter((tk) => null !== tk.completedAt))
-
-// The donut summarises open *tasks* by due-date urgency — the actionable
-// subset. Non-task events have no due date, so they stay out of it.
-const openTaskItems = computed(() => openItems.value.filter((tk) => tk.type === 'task'))
-const openTaskCount = computed(() => openTaskItems.value.length)
+const totalOpen = computed(() => openItems.value.length)
 
 function urgencyOf(tk: DashboardTask): Urgency {
   return taskUrgency(tk.occurredAt)
 }
 
+// The donut breaks the open events down by type — every open event counts.
+const TYPE_META: { key: ActivityType; color: string }[] = [
+  { key: 'task', color: '#b3122e' },
+  { key: 'call', color: '#2b59c3' },
+  { key: 'meeting', color: '#1c7a45' },
+  { key: 'email', color: '#e8833a' },
+  { key: 'note', color: '#9aa6bd' },
+]
+
 const segments = computed(() =>
-  URGENCIES.map((u) => ({
-    ...u,
-    count: openTaskItems.value.filter((tk) => urgencyOf(tk) === u.key).length,
+  TYPE_META.map((m) => ({
+    ...m,
+    count: openItems.value.filter((tk) => tk.type === m.key).length,
   })),
 )
 
@@ -66,7 +71,7 @@ const R = 60
 const C = 2 * Math.PI * R
 
 const donut = computed(() => {
-  const total = openTaskCount.value
+  const total = totalOpen.value
   let acc = 0
   return segments.value
     .filter((s) => s.count > 0)
@@ -158,7 +163,7 @@ onMounted(reload)
       <template v-else>
         <!-- ── Chart card ─────────────────────────────────────────── -->
         <div class="tk-panel chart-card">
-          <svg class="donut" viewBox="0 0 160 160" role="img" :aria-label="t('adminTasks.openTasks')">
+          <svg class="donut" viewBox="0 0 160 160" role="img" :aria-label="t('adminTasks.filter_open')">
             <circle class="donut-track" cx="80" cy="80" :r="R" fill="none" stroke="#eef1f6" stroke-width="18" />
             <g transform="rotate(-90 80 80)">
               <circle
@@ -174,18 +179,18 @@ onMounted(reload)
                 :stroke-dashoffset="seg.offset"
               />
             </g>
-            <text x="80" y="74" text-anchor="middle" class="donut-num">{{ openTaskCount }}</text>
+            <text x="80" y="74" text-anchor="middle" class="donut-num">{{ totalOpen }}</text>
             <text x="80" y="92" text-anchor="middle" class="donut-label">{{ t('adminTasks.openTotal') }}</text>
           </svg>
 
           <ul class="legend">
             <li v-for="s in segments" :key="s.key">
               <span class="legend-dot" :style="{ background: s.color }"></span>
-              <span class="legend-label">{{ t('adminTasks.urgency_' + s.key) }}</span>
+              <span class="legend-label">{{ typeLabel(s.key) }}</span>
               <span class="legend-count">{{ s.count }}</span>
             </li>
             <li class="legend--done">
-              <span class="legend-dot" style="background: #1c7a45"></span>
+              <span class="legend-dot" style="background: #0c1c40"></span>
               <span class="legend-label">{{ t('adminTasks.completed') }}</span>
               <span class="legend-count">{{ closedItems.length }}</span>
             </li>
@@ -195,7 +200,7 @@ onMounted(reload)
         <!-- ── Open ───────────────────────────────────────────────── -->
         <div v-if="showOpen" class="tk-panel">
           <h2 class="tk-section-head">
-            {{ t('adminTasks.openTasks') }} <span class="tk-count">{{ sortedOpen.length }}</span>
+            {{ t('adminTasks.filter_open') }} <span class="tk-count">{{ sortedOpen.length }}</span>
           </h2>
 
           <p v-if="sortedOpen.length === 0" class="state">{{ t('adminTasks.empty') }}</p>

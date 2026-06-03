@@ -415,7 +415,7 @@ export default {
     actConfirmDelete: 'Usunąć tę aktywność?',
   },
   adminTasks: {
-    subtitle: 'Przegląd otwartych i nadchodzących zadań według pilności.',
+    subtitle: 'Działania zarejestrowane u klientów — filtruj według statusu.',
     scopeMine: 'Moje zadania',
     scopeAll: 'Wszystkie zadania',
     openTotal: 'otwarte',

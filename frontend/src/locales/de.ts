@@ -415,7 +415,7 @@ export default {
     actConfirmDelete: 'Diese Aktivität löschen?',
   },
   adminTasks: {
-    subtitle: 'Überblick über offene und anstehende Aufgaben nach Dringlichkeit.',
+    subtitle: 'Aktivitäten über alle Kunden – nach Status filterbar.',
     scopeMine: 'Meine Aufgaben',
     scopeAll: 'Alle Aufgaben',
     openTotal: 'offen',
