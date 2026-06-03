@@ -69,7 +69,7 @@ function scrollTop() {
             <h4 class="sub-title">{{ t('footer.contact') }}</h4>
             <ul class="nav nav-footer contact">
               <li>
-                <a href="mailto:contact@loginautonom.com">contact@loginautonom.com</a>
+                <a href="mailto:gabor.kiss@loginautonom.com">gabor.kiss@loginautonom.com</a>
               </li>
             </ul>
           </div>
