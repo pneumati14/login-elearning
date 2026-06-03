@@ -29,7 +29,7 @@ function scrollTop() {
           <img src="/frontend-files/images/logo-lg.svg" class="img-fluid" alt="Login Autonom" />
         </div>
 
-        <a href="javascript:void(0);" class="btn-scroll scroll-up" @click="scrollTop">
+        <a href="#" class="btn-scroll scroll-up" @click.prevent="scrollTop">
           <svg viewBox="0 0 16 16"><use xlink:href="/frontend-files/images/icons.svg#caret-circle-up"></use></svg>
         </a>
 
