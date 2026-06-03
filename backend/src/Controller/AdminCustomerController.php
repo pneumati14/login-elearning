@@ -19,7 +19,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  * DELETE route sets deletedAt and listings filter on IS NULL.
  */
 #[Route('/api/admin/customers', name: 'api_admin_customers_')]
-#[IsGranted('ROLE_ADMIN')]
+#[IsGranted('ROLE_SALES')]
 final class AdminCustomerController extends AbstractController
 {
     public function __construct(

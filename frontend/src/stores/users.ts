@@ -4,12 +4,14 @@ import type { AuthUser, MutationResult } from './auth'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api'
 
+export type UserRole = 'user' | 'sales' | 'sales_manager' | 'admin'
+
 export interface NewUser {
   email: string
   firstName: string
   lastName: string
   password: string
-  role: 'user' | 'admin'
+  role: UserRole
 }
 
 /** Admin-only store backing the user management screen. */
@@ -87,6 +89,31 @@ export const useUsersStore = defineStore('users', () => {
     }
   }
 
+  /** Change a user's role. The response carries the refreshed user. */
+  async function updateRole(id: number, role: UserRole): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/users/${id}/role`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ role }),
+      })
+      const data = (await response.json().catch(() => null)) as AuthUser | { error: string } | null
+
+      if (!response.ok) {
+        return {
+          ok: false,
+          error: (data && 'error' in data && data.error) || 'A szerepkör módosítása nem sikerült.',
+        }
+      }
+
+      users.value = users.value.map((u) => (u.id === id ? (data as AuthUser) : u))
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
   /** Admin override: set a new password for any user, no current one needed. */
   async function setPassword(id: number, newPassword: string): Promise<MutationResult> {
     try {
@@ -108,5 +135,5 @@ export const useUsersStore = defineStore('users', () => {
     }
   }
 
-  return { users, loading, error, fetchUsers, createUser, deleteUser, setPassword }
+  return { users, loading, error, fetchUsers, createUser, deleteUser, updateRole, setPassword }
 })

@@ -12,12 +12,14 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
- * Product catalogue — administrators only. Plain admin-managed config,
- * not localized. Products can be added as line items to opportunities.
- * Hard delete (line items snapshot the name/price, so history survives).
+ * Product catalogue. Reading the list is open to sales staff (they pick
+ * products as line items when building opportunities); managing the
+ * catalogue itself (create/update/delete) is administrators only. Plain
+ * admin-managed config, not localized. Hard delete (line items snapshot
+ * the name/price, so history survives).
  */
 #[Route('/api/admin/products', name: 'api_admin_products_')]
-#[IsGranted('ROLE_ADMIN')]
+#[IsGranted('ROLE_SALES')]
 final class AdminProductController extends AbstractController
 {
     public function __construct(
@@ -38,6 +40,7 @@ final class AdminProductController extends AbstractController
     }
 
     #[Route('', name: 'create', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN')]
     public function create(Request $request): JsonResponse
     {
         $payload = $this->decode($request);
@@ -58,6 +61,7 @@ final class AdminProductController extends AbstractController
     }
 
     #[Route('/{id<\d+>}', name: 'update', methods: ['PUT'])]
+    #[IsGranted('ROLE_ADMIN')]
     public function update(Product $product, Request $request): JsonResponse
     {
         $payload = $this->decode($request);
@@ -77,6 +81,7 @@ final class AdminProductController extends AbstractController
     }
 
     #[Route('/{id<\d+>}', name: 'delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_ADMIN')]
     public function delete(Product $product): JsonResponse
     {
         $this->entityManager->remove($product);

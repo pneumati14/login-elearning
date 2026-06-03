@@ -13,12 +13,14 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
- * Opportunity type (sales pipeline) configuration — administrators
+ * Opportunity type (sales pipeline) configuration. Reading the list is
+ * open to sales staff (they pick a type and move deals through its
+ * stages); configuring the types and their stages is administrators
  * only. Each type owns an ordered list of stages, managed via the
  * nested stages controller. Hard delete.
  */
 #[Route('/api/admin/opportunity-types', name: 'api_admin_opportunity_types_')]
-#[IsGranted('ROLE_ADMIN')]
+#[IsGranted('ROLE_SALES')]
 final class AdminOpportunityTypeController extends AbstractController
 {
     public function __construct(
@@ -39,6 +41,7 @@ final class AdminOpportunityTypeController extends AbstractController
     }
 
     #[Route('', name: 'create', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN')]
     public function create(Request $request): JsonResponse
     {
         $payload = $this->decode($request);
@@ -65,6 +68,7 @@ final class AdminOpportunityTypeController extends AbstractController
     }
 
     #[Route('/{id<\d+>}', name: 'update', methods: ['PUT'])]
+    #[IsGranted('ROLE_ADMIN')]
     public function update(OpportunityType $type, Request $request): JsonResponse
     {
         $payload = $this->decode($request);
@@ -89,6 +93,7 @@ final class AdminOpportunityTypeController extends AbstractController
     }
 
     #[Route('/{id<\d+>}', name: 'delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_ADMIN')]
     public function delete(OpportunityType $type): JsonResponse
     {
         $this->entityManager->remove($type);
@@ -102,6 +107,7 @@ final class AdminOpportunityTypeController extends AbstractController
      * from the list keeps its relative order after the listed ones.
      */
     #[Route('/reorder', name: 'reorder', methods: ['PUT'])]
+    #[IsGranted('ROLE_ADMIN')]
     public function reorder(Request $request): JsonResponse
     {
         $payload = $this->decode($request);

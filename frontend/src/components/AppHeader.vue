@@ -63,7 +63,27 @@ const panels = computed<Record<string, Panel>>(() => {
     },
   }
 
-  // The Admin submenu is only built — and only shown — for administrators.
+  // The CRM submenu is shown to anyone with CRM access (salesperson,
+  // sales manager or admin). Customers and tasks are open to all of them;
+  // the catalogue config (opportunity types, products) is admins only.
+  // Salespeople and sales managers see no other admin menu.
+  if (auth.hasCrmAccess) {
+    rootItems.push({ label: t('nav.crm'), icon: 'team-career.svg', type: 'panel', child: 'panel-crm' })
+    const crmItems: MenuItem[] = [
+      { label: t('nav.adminCustomers'), icon: 'team-career.svg', type: 'route', to: '/admin/customers' },
+      { label: t('nav.adminTasks'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/tasks' },
+    ]
+    if (auth.canManageCatalog) {
+      crmItems.push(
+        { label: t('nav.adminOpportunityTypes'), icon: 'competency.svg', type: 'route', to: '/admin/opportunity-types' },
+        { label: t('nav.adminProducts'), icon: 'publications.svg', type: 'route', to: '/admin/products' },
+      )
+    }
+    result['panel-crm'] = { parent: 'panel-1', items: crmItems }
+  }
+
+  // The Admin submenu (non-CRM administration) is only built — and only
+  // shown — for administrators.
   if (auth.isAdmin) {
     rootItems.push({ label: t('nav.admin'), icon: 'about-us.svg', type: 'panel', child: 'panel-admin' })
     result['panel-admin'] = {
@@ -73,10 +93,6 @@ const panels = computed<Record<string, Panel>>(() => {
         { label: t('nav.adminUsers'), icon: 'team-career.svg', type: 'route', to: '/admin/users' },
         { label: t('nav.adminPublications'), icon: 'publications.svg', type: 'route', to: '/admin/publications' },
         { label: t('nav.adminPositions'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/positions' },
-        { label: t('nav.adminCustomers'), icon: 'team-career.svg', type: 'route', to: '/admin/customers' },
-        { label: t('nav.adminOpportunityTypes'), icon: 'competency.svg', type: 'route', to: '/admin/opportunity-types' },
-        { label: t('nav.adminProducts'), icon: 'publications.svg', type: 'route', to: '/admin/products' },
-        { label: t('nav.adminTasks'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/tasks' },
       ],
     }
   }

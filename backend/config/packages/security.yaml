@@ -44,13 +44,24 @@ security:
             # instead of a redirect to an HTML login page.
             entry_point: App\Security\JsonAuthEntryPoint
 
+    # Role hierarchy for the CRM. A sales manager can do everything a
+    # salesperson can; an administrator can do everything, full stop.
+    #   ROLE_ADMIN ⊃ ROLE_SALES_MANAGER ⊃ ROLE_SALES
+    role_hierarchy:
+        ROLE_SALES_MANAGER: [ROLE_SALES]
+        ROLE_ADMIN:         [ROLE_SALES_MANAGER]
+
     # Only the *first* matching rule applies — keep most specific on top.
     access_control:
         - { path: ^/api/login,  roles: PUBLIC_ACCESS }
         - { path: ^/api/logout, roles: PUBLIC_ACCESS }
         - { path: ^/api/health, roles: PUBLIC_ACCESS }
         - { path: ^/api/publications, roles: PUBLIC_ACCESS }
-        - { path: ^/api/admin,   roles: ROLE_ADMIN }
+        # CRM endpoints under /api/admin are reachable by sales staff; each
+        # controller still gates itself (ROLE_SALES / ROLE_SALES_MANAGER /
+        # ROLE_ADMIN), so admin-only areas stay admin-only. This is just the
+        # firewall-level floor — the real gate is the per-controller IsGranted.
+        - { path: ^/api/admin,   roles: ROLE_SALES }
         - { path: ^/api/me,      roles: ROLE_USER }
         - { path: ^/api/users,   roles: ROLE_USER }
         - { path: ^/api/courses, roles: ROLE_USER }

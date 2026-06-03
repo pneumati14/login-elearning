@@ -14,6 +14,7 @@ import {
   type SalesAssignmentFields,
 } from '@/stores/customers'
 import { useUsersStore } from '@/stores/users'
+import { useAuthStore } from '@/stores/auth'
 import AddressFieldset from '@/components/AddressFieldset.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
@@ -24,6 +25,7 @@ const emit = defineEmits<{ saved: []; cancel: [] }>()
 const { t } = useI18n()
 const store = useCustomersStore()
 const usersStore = useUsersStore()
+const auth = useAuthStore()
 const { users } = storeToRefs(usersStore)
 
 const userOptions = computed(() =>
@@ -81,7 +83,9 @@ watch(() => props.customer.id, init)
 
 onMounted(() => {
   init()
-  if (0 === users.value.length) usersStore.fetchUsers()
+  // Only managers/admins edit assignments, and only they may read the
+  // user list (GET /admin/users is gated to sales managers and above).
+  if (auth.canManageAssignments && 0 === users.value.length) usersStore.fetchUsers()
 })
 
 async function onSave() {
@@ -253,7 +257,7 @@ function formatAssignmentPeriod(a: SalesAssignment): string {
               <span class="sales-row-period">{{ formatAssignmentPeriod(a) }}</span>
               <span v-if="a.notes" class="sales-row-notes">{{ a.notes }}</span>
             </div>
-            <div class="sales-row-actions">
+            <div v-if="auth.canManageAssignments" class="sales-row-actions">
               <button
                 type="button"
                 class="btn-icon"
@@ -314,8 +318,8 @@ function formatAssignmentPeriod(a: SalesAssignment): string {
         </li>
       </ul>
 
-      <!-- ── Új hozzárendelés ─────────────────────────────────────── -->
-      <div class="sales-new">
+      <!-- ── Új hozzárendelés (csak sales manager / admin) ─────────── -->
+      <div v-if="auth.canManageAssignments" class="sales-new">
         <h4>{{ t('adminCustomers.salesAdd') }}</h4>
         <div class="sales-form-grid">
           <label class="field">

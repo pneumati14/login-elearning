@@ -22,7 +22,8 @@ final class UserSerializer
             'lastName' => $user->getLastName(),
             'fullName' => $user->getFullName(),
             'roles' => $user->getRoles(),
-            'isAdmin' => \in_array('ROLE_ADMIN', $user->getRoles(), true),
+            'role' => $user->getPrimaryRole(),
+            'isAdmin' => \in_array(User::ROLE_ADMIN, $user->getRoles(), true),
             'avatarUrl' => null !== $user->getAvatarPath()
                 ? '/api/users/'.$user->getId().'/avatar?v='.$user->getAvatarPath()
                 : null,

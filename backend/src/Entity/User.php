@@ -11,6 +11,29 @@ use Symfony\Component\Security\Core\User\UserInterface;
 #[ORM\Table(name: 'app_user')]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
+    // CRM / admin roles, in ascending order of privilege. The role
+    // hierarchy in security.yaml makes each one inherit the ones below it.
+    public const ROLE_SALES = 'ROLE_SALES';
+    public const ROLE_SALES_MANAGER = 'ROLE_SALES_MANAGER';
+    public const ROLE_ADMIN = 'ROLE_ADMIN';
+
+    /**
+     * Map a short "primary role" token (as used by the admin UI and the
+     * API payloads) to the stored roles array. Anything unknown — including
+     * the plain "user" — maps to no extra role (ROLE_USER is implicit).
+     *
+     * @return list<string>
+     */
+    public static function rolesForPrimary(string $token): array
+    {
+        return match ($token) {
+            'admin' => [self::ROLE_ADMIN],
+            'sales_manager' => [self::ROLE_SALES_MANAGER],
+            'sales' => [self::ROLE_SALES],
+            default => [],
+        };
+    }
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -97,6 +120,26 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->roles = $roles;
 
         return $this;
+    }
+
+    /**
+     * The single highest-privilege role this user holds, as the short token
+     * the admin UI works with: 'admin' | 'sales_manager' | 'sales' | 'user'.
+     */
+    public function getPrimaryRole(): string
+    {
+        $roles = $this->getRoles();
+        if (\in_array(self::ROLE_ADMIN, $roles, true)) {
+            return 'admin';
+        }
+        if (\in_array(self::ROLE_SALES_MANAGER, $roles, true)) {
+            return 'sales_manager';
+        }
+        if (\in_array(self::ROLE_SALES, $roles, true)) {
+            return 'sales';
+        }
+
+        return 'user';
     }
 
     public function getPassword(): ?string

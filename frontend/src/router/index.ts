@@ -87,19 +87,19 @@ const router = createRouter({
       path: '/admin/customers',
       name: 'admin-customers',
       component: () => import('../views/AdminCustomersView.vue'),
-      meta: { requiresAuth: true, requiresAdmin: true },
+      meta: { requiresAuth: true, requiresCrm: true },
     },
     {
       path: '/admin/customers/:id',
       name: 'admin-customer-detail',
       component: () => import('../views/AdminCustomerDetailView.vue'),
-      meta: { requiresAuth: true, requiresAdmin: true },
+      meta: { requiresAuth: true, requiresCrm: true },
     },
     {
       path: '/admin/tasks',
       name: 'admin-tasks',
       component: () => import('../views/AdminTasksView.vue'),
-      meta: { requiresAuth: true, requiresAdmin: true },
+      meta: { requiresAuth: true, requiresCrm: true },
     },
     {
       path: '/admin/products',
@@ -176,6 +176,12 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresAdmin && !auth.isAdmin) {
+    return { name: 'e-learning' }
+  }
+
+  // CRM area: admins, sales managers and salespeople. The admin-only CRM
+  // screens (products, opportunity types) keep requiresAdmin above.
+  if (to.meta.requiresCrm && !auth.hasCrmAccess) {
     return { name: 'e-learning' }
   }
 

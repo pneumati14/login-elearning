@@ -15,11 +15,14 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
  * Sub-resource of customer: salesperson assignments with from..until
- * periods. Administrators only. Concurrent / overlapping periods are
- * intentionally allowed (handover and team-share scenarios).
+ * periods. Managing assignments (who is responsible for whom) is reserved
+ * for sales managers and administrators; plain salespeople see the
+ * assignments read-only (served as part of the customer payload).
+ * Concurrent / overlapping periods are intentionally allowed (handover
+ * and team-share scenarios).
  */
 #[Route('/api/admin/customers/{customerId<\d+>}/sales-assignments', name: 'api_admin_customer_sales_')]
-#[IsGranted('ROLE_ADMIN')]
+#[IsGranted('ROLE_SALES_MANAGER')]
 final class AdminCustomerSalesAssignmentController extends AbstractController
 {
     public function __construct(

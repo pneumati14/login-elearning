@@ -19,7 +19,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  * controller.
  */
 #[Route('/api/admin/tasks', name: 'api_admin_tasks_')]
-#[IsGranted('ROLE_ADMIN')]
+#[IsGranted('ROLE_SALES')]
 final class AdminTaskController extends AbstractController
 {
     public function __construct(private readonly ActivityRepository $activities)

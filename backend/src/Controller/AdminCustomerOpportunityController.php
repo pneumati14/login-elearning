@@ -32,7 +32,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  * is recorded as an OpportunityStageChange.
  */
 #[Route('/api/admin/customers/{customerId<\d+>}/opportunities', name: 'api_admin_customer_opportunities_')]
-#[IsGranted('ROLE_ADMIN')]
+#[IsGranted('ROLE_SALES')]
 final class AdminCustomerOpportunityController extends AbstractController
 {
     private const DOC_SUBDIR = 'opportunities';

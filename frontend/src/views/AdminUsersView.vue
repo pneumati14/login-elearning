@@ -2,7 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { useUsersStore, type NewUser } from '@/stores/users'
+import { useUsersStore, type NewUser, type UserRole } from '@/stores/users'
 import { useAuthStore, type AuthUser } from '@/stores/auth'
 
 const { t } = useI18n()
@@ -61,6 +61,27 @@ async function onCreate() {
     resetForm()
   } else {
     formError.value = result.error ?? t('adminUsers.createFailed')
+  }
+}
+
+function roleLabel(role: UserRole): string {
+  const labels: Record<UserRole, string> = {
+    user: t('adminUsers.roleUser'),
+    sales: t('adminUsers.roleSales'),
+    sales_manager: t('adminUsers.roleSalesManager'),
+    admin: t('adminUsers.roleAdmin'),
+  }
+  return labels[role]
+}
+
+async function onChangeRole(user: AuthUser, role: UserRole) {
+  if (role === user.role) return
+  listNotice.value = null
+  const result = await store.updateRole(user.id, role)
+  if (!result.ok) {
+    window.alert(result.error ?? t('admin.saveFailed'))
+  } else {
+    listNotice.value = t('adminUsers.roleUpdated', { name: user.fullName })
   }
 }
 
@@ -159,6 +180,8 @@ function formatDate(iso: string): string {
             <span class="field-label">{{ t('adminUsers.role') }}</span>
             <select v-model="form.role">
               <option value="user">{{ t('adminUsers.roleUser') }}</option>
+              <option value="sales">{{ t('adminUsers.roleSales') }}</option>
+              <option value="sales_manager">{{ t('adminUsers.roleSalesManager') }}</option>
               <option value="admin">{{ t('adminUsers.roleAdmin') }}</option>
             </select>
           </label>
@@ -204,8 +227,19 @@ function formatDate(iso: string): string {
                 <td :data-label="t('adminUsers.colName')">{{ u.fullName }}</td>
                 <td :data-label="t('adminUsers.colEmail')">{{ u.email }}</td>
                 <td :data-label="t('adminUsers.role')">
-                  <span class="role" :class="{ 'role--admin': u.isAdmin }">
-                    {{ u.isAdmin ? t('adminUsers.badgeAdmin') : t('adminUsers.roleUser') }}
+                  <select
+                    v-if="u.id !== auth.user?.id"
+                    class="role-select"
+                    :value="u.role"
+                    @change="onChangeRole(u, ($event.target as HTMLSelectElement).value as UserRole)"
+                  >
+                    <option value="user">{{ t('adminUsers.roleUser') }}</option>
+                    <option value="sales">{{ t('adminUsers.roleSales') }}</option>
+                    <option value="sales_manager">{{ t('adminUsers.roleSalesManager') }}</option>
+                    <option value="admin">{{ t('adminUsers.roleAdmin') }}</option>
+                  </select>
+                  <span v-else class="role" :class="{ 'role--admin': u.isAdmin }">
+                    {{ roleLabel(u.role) }}
                   </span>
                 </td>
                 <td :data-label="t('adminUsers.colCreated')">{{ formatDate(u.createdAt) }}</td>
@@ -427,6 +461,22 @@ function formatDate(iso: string): string {
 .role--admin {
   background: var(--login-primary, #ed2044);
   color: #fff;
+}
+
+.role-select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #d4dae6;
+  border-radius: 0.45rem;
+  background: #fff;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.role-select:focus {
+  outline: none;
+  border-color: var(--login-primary, #ed2044);
 }
 
 .cell-action {

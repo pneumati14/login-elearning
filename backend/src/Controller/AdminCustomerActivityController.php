@@ -21,7 +21,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  * (onDelete CASCADE on the entity).
  */
 #[Route('/api/admin/customers/{customerId<\d+>}/activities', name: 'api_admin_customer_activities_')]
-#[IsGranted('ROLE_ADMIN')]
+#[IsGranted('ROLE_SALES')]
 final class AdminCustomerActivityController extends AbstractController
 {
     public function __construct(

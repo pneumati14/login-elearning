@@ -16,11 +16,12 @@ use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
- * User management — only administrators may reach these endpoints.
+ * User management. Creating, deleting, resetting passwords and changing
+ * roles is administrators only. Reading the list is also open to sales
+ * managers — they need it to pick a salesperson when assigning customers.
  * There is no public registration; admins create every account.
  */
 #[Route('/api/admin/users', name: 'api_admin_users_')]
-#[IsGranted('ROLE_ADMIN')]
 final class AdminUserController extends AbstractController
 {
     public function __construct(
@@ -33,6 +34,7 @@ final class AdminUserController extends AbstractController
     }
 
     #[Route('', name: 'list', methods: ['GET'])]
+    #[IsGranted('ROLE_SALES_MANAGER')]
     public function list(): JsonResponse
     {
         $data = array_map(
@@ -44,6 +46,7 @@ final class AdminUserController extends AbstractController
     }
 
     #[Route('', name: 'create', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN')]
     public function create(Request $request): JsonResponse
     {
         $payload = json_decode($request->getContent(), true);
@@ -56,7 +59,7 @@ final class AdminUserController extends AbstractController
         $firstName = trim((string) ($payload['firstName'] ?? ''));
         $lastName = trim((string) ($payload['lastName'] ?? ''));
         $password = (string) ($payload['password'] ?? '');
-        $isAdmin = ($payload['role'] ?? 'user') === 'admin';
+        $roles = User::rolesForPrimary((string) ($payload['role'] ?? 'user'));
 
         $errors = [];
         if ('' === $email || false === filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -83,7 +86,7 @@ final class AdminUserController extends AbstractController
             ->setEmail($email)
             ->setFirstName($firstName)
             ->setLastName($lastName)
-            ->setRoles($isAdmin ? ['ROLE_ADMIN'] : []);
+            ->setRoles($roles);
         $user->setPassword($this->passwordHasher->hashPassword($user, $password));
 
         $this->entityManager->persist($user);
@@ -92,7 +95,40 @@ final class AdminUserController extends AbstractController
         return $this->json($this->serializer->toArray($user), JsonResponse::HTTP_CREATED);
     }
 
+    /**
+     * Change a user's role. Body: { "role": "user|sales|sales_manager|admin" }.
+     * An admin cannot change their own role — that's a footgun (self-lockout),
+     * so we refuse it and keep at least the acting admin an admin.
+     */
+    #[Route('/{id<\d+>}/role', name: 'set_role', methods: ['PUT'])]
+    #[IsGranted('ROLE_ADMIN')]
+    public function setRole(User $user, Request $request, #[CurrentUser] ?User $current): JsonResponse
+    {
+        if (null !== $current && $user->getId() === $current->getId()) {
+            return $this->json(
+                ['error' => 'A saját szerepkörödet nem módosíthatod.'],
+                JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        $payload = json_decode($request->getContent(), true);
+        if (!\is_array($payload)) {
+            return $this->json(['error' => 'Érvénytelen kérés.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $token = (string) ($payload['role'] ?? '');
+        if (!\in_array($token, ['user', 'sales', 'sales_manager', 'admin'], true)) {
+            return $this->json(['error' => 'Ismeretlen szerepkör.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $user->setRoles(User::rolesForPrimary($token));
+        $this->entityManager->flush();
+
+        return $this->json($this->serializer->toArray($user));
+    }
+
     #[Route('/{id<\d+>}', name: 'delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_ADMIN')]
     public function delete(User $user, #[CurrentUser] ?User $current): JsonResponse
     {
         if (null !== $current && $user->getId() === $current->getId()) {
@@ -114,6 +150,7 @@ final class AdminUserController extends AbstractController
      * an administrative override, available only to administrators.
      */
     #[Route('/{id<\d+>}/password', name: 'set_password', methods: ['PUT'])]
+    #[IsGranted('ROLE_ADMIN')]
     public function setPassword(User $user, Request $request): JsonResponse
     {
         $payload = json_decode($request->getContent(), true);

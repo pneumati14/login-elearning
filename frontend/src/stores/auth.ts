@@ -9,6 +9,8 @@ export interface AuthUser {
   lastName: string
   fullName: string
   roles: string[]
+  /** Highest single role: 'admin' | 'sales_manager' | 'sales' | 'user'. */
+  role: 'admin' | 'sales_manager' | 'sales' | 'user'
   isAdmin: boolean
   avatarUrl: string | null
   locale: string
@@ -32,6 +34,19 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => user.value !== null)
   const isAdmin = computed(() => user.value?.isAdmin ?? false)
+
+  // ── CRM access (role hierarchy: admin ⊃ sales_manager ⊃ sales) ──────
+  const hasRole = (...roles: string[]): boolean =>
+    user.value !== null && roles.some((r) => user.value!.roles.includes(r))
+
+  /** May reach the CRM area at all (admin, sales manager or salesperson). */
+  const hasCrmAccess = computed(() => isAdmin.value || hasRole('ROLE_SALES_MANAGER', 'ROLE_SALES'))
+  /** Sales manager or above — may manage sales assignments. */
+  const isSalesManager = computed(() => isAdmin.value || hasRole('ROLE_SALES_MANAGER'))
+  /** Manage who is responsible for which customer. */
+  const canManageAssignments = computed(() => isSalesManager.value)
+  /** Manage the opportunity-type pipeline config and the product catalogue. */
+  const canManageCatalog = computed(() => isAdmin.value)
 
   /** Restore the session on app load by asking the API who is logged in. */
   async function fetchMe(): Promise<void> {
@@ -209,6 +224,10 @@ export const useAuthStore = defineStore('auth', () => {
     error,
     isAuthenticated,
     isAdmin,
+    hasCrmAccess,
+    isSalesManager,
+    canManageAssignments,
+    canManageCatalog,
     fetchMe,
     login,
     logout,
