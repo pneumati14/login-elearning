@@ -29,6 +29,31 @@ export interface SalesAssignmentFields {
   notes: string | null
 }
 
+export interface Contact {
+  id: number
+  firstName: string
+  lastName: string
+  jobTitle: string | null
+  email: string | null
+  phone: string | null
+  mobile: string | null
+  isPrimary: boolean
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ContactFields {
+  firstName: string
+  lastName: string
+  jobTitle: string | null
+  email: string | null
+  phone: string | null
+  mobile: string | null
+  isPrimary: boolean
+  notes: string | null
+}
+
 export interface Customer {
   id: number
   name: string
@@ -42,6 +67,7 @@ export interface Customer {
   validFrom: string | null
   validUntil: string | null
   salesAssignments: SalesAssignment[]
+  contacts: Contact[]
   createdAt: string
   updatedAt: string
 }
@@ -78,6 +104,33 @@ export const emptyCustomerFields = (): CustomerFields => ({
   validFrom: null,
   validUntil: null,
 })
+
+export const emptyContactFields = (): ContactFields => ({
+  firstName: '',
+  lastName: '',
+  jobTitle: null,
+  email: null,
+  phone: null,
+  mobile: null,
+  isPrimary: false,
+  notes: null,
+})
+
+// Trim and normalize empty strings to null before sending, mirroring the
+// customer payload contract.
+export function toContactPayload(f: ContactFields): ContactFields {
+  const norm = (v: string | null): string | null => (null === v || '' === v.trim() ? null : v.trim())
+  return {
+    firstName: f.firstName.trim(),
+    lastName: f.lastName.trim(),
+    jobTitle: norm(f.jobTitle),
+    email: norm(f.email),
+    phone: norm(f.phone),
+    mobile: norm(f.mobile),
+    isPrimary: f.isPrimary,
+    notes: norm(f.notes),
+  }
+}
 
 export function addressesEqual(a: Address, b: Address): boolean {
   return a.country === b.country
@@ -292,6 +345,76 @@ export const useCustomersStore = defineStore('customers', () => {
     }
   }
 
+  // ── Contacts ─────────────────────────────────────────────────────
+  function replaceContacts(customerId: number, mapper: (list: Contact[]) => Contact[]): void {
+    customers.value = customers.value.map((c) =>
+      c.id === customerId ? { ...c, contacts: mapper(c.contacts) } : c,
+    )
+  }
+
+  async function createContact(customerId: number, fields: ContactFields): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${customerId}/contacts`, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(toContactPayload(fields)),
+      })
+      const data = (await response.json().catch(() => null)) as Contact | { error?: string } | null
+
+      if (!response.ok) {
+        const message = data && 'error' in data && data.error ? data.error : 'A kapcsolattartó mentése nem sikerült.'
+        return { ok: false, error: message }
+      }
+      if (data && 'id' in data) {
+        replaceContacts(customerId, (list) => [...list, data])
+      }
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  async function updateContact(customerId: number, contactId: number, fields: ContactFields): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${customerId}/contacts/${contactId}`, {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(toContactPayload(fields)),
+      })
+      const data = (await response.json().catch(() => null)) as Contact | { error?: string } | null
+
+      if (!response.ok) {
+        const message = data && 'error' in data && data.error ? data.error : 'A mentés nem sikerült.'
+        return { ok: false, error: message }
+      }
+      if (data && 'id' in data) {
+        replaceContacts(customerId, (list) => list.map((c) => (c.id === contactId ? data : c)))
+      }
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  async function deleteContact(customerId: number, contactId: number): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${customerId}/contacts/${contactId}`, {
+        method: 'DELETE',
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      })
+      if (!response.ok) {
+        return { ok: false, error: 'A törlés nem sikerült.' }
+      }
+      replaceContacts(customerId, (list) => list.filter((c) => c.id !== contactId))
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
   async function deleteCustomer(id: number): Promise<MutationResult> {
     try {
       const response = await fetch(`${API_URL}/admin/customers/${id}`, {
@@ -323,6 +446,9 @@ export const useCustomersStore = defineStore('customers', () => {
     createSalesAssignment,
     updateSalesAssignment,
     deleteSalesAssignment,
+    createContact,
+    updateContact,
+    deleteContact,
   }
 })
 

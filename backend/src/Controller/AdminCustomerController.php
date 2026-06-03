@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Address;
+use App\Entity\Contact;
 use App\Entity\Customer;
 use App\Entity\CustomerSalesAssignment;
 use App\Repository\CustomerRepository;
@@ -223,6 +224,10 @@ final class AdminCustomerController extends AbstractController
                 fn (CustomerSalesAssignment $a): array => $this->serializeAssignment($a),
                 $c->getSalesAssignments()->toArray(),
             ),
+            'contacts' => array_map(
+                fn (Contact $contact): array => $this->serializeContact($contact),
+                $c->getContacts()->toArray(),
+            ),
             'createdAt' => $c->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updatedAt' => $c->getUpdatedAt()->format(\DateTimeInterface::ATOM),
         ];
@@ -244,6 +249,26 @@ final class AdminCustomerController extends AbstractController
             'validUntil' => $a->getValidUntil()?->format('Y-m-d'),
             'notes' => $a->getNotes(),
             'createdAt' => $a->getCreatedAt()->format(\DateTimeInterface::ATOM),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeContact(Contact $c): array
+    {
+        return [
+            'id' => $c->getId(),
+            'firstName' => $c->getFirstName(),
+            'lastName' => $c->getLastName(),
+            'jobTitle' => $c->getJobTitle(),
+            'email' => $c->getEmail(),
+            'phone' => $c->getPhone(),
+            'mobile' => $c->getMobile(),
+            'isPrimary' => $c->isPrimary(),
+            'notes' => $c->getNotes(),
+            'createdAt' => $c->getCreatedAt()->format(\DateTimeInterface::ATOM),
+            'updatedAt' => $c->getUpdatedAt()->format(\DateTimeInterface::ATOM),
         ];
     }
 

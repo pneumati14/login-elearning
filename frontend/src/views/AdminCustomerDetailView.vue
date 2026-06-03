@@ -10,6 +10,7 @@ import {
   type SalesAssignment,
 } from '@/stores/customers'
 import CustomerEditor from '@/components/CustomerEditor.vue'
+import CustomerContactsPanel from '@/components/CustomerContactsPanel.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 
 const { t } = useI18n()
@@ -29,7 +30,7 @@ const activeTab = ref<TabKey>('overview')
 
 const tabs: { key: TabKey; label: string; ready: boolean }[] = [
   { key: 'overview', label: 'tabOverview', ready: true },
-  { key: 'contacts', label: 'tabContacts', ready: false },
+  { key: 'contacts', label: 'tabContacts', ready: true },
   { key: 'opportunities', label: 'tabOpportunities', ready: false },
   { key: 'timeline', label: 'tabTimeline', ready: false },
 ]
@@ -181,6 +182,11 @@ function salesPeriod(a: SalesAssignment): string {
             </ul>
           </fieldset>
           </template>
+        </div>
+
+        <!-- ── Contacts ─────────────────────────────────────────────── -->
+        <div v-else-if="activeTab === 'contacts'" class="cust-panel">
+          <CustomerContactsPanel :customer="customer" />
         </div>
 
         <!-- ── Placeholder tabs (future CRM phases) ─────────────────── -->
