@@ -41,19 +41,18 @@ class ActivityRepository extends ServiceEntityRepository
     }
 
     /**
-     * All task-type activities across customers (skipping soft-deleted
-     * customers), ordered by due date ascending so the most urgent come
-     * first. Optionally limited to those created by a given user.
+     * The cross-customer activity feed (every type, skipping soft-deleted
+     * customers), ordered by occurredAt ascending so open tasks surface by
+     * urgency. Open and closed are both returned; the dashboard filters by
+     * status client-side. Optionally limited to a given creator.
      *
      * @return Activity[]
      */
-    public function findTasks(?User $createdBy = null): array
+    public function findFeed(?User $createdBy = null): array
     {
         $qb = $this->createQueryBuilder('a')
             ->innerJoin('a.customer', 'c')
-            ->andWhere('a.type = :task')
             ->andWhere('c.deletedAt IS NULL')
-            ->setParameter('task', Activity::TYPE_TASK)
             ->orderBy('a.occurredAt', 'ASC')
             ->addOrderBy('a.id', 'ASC');
 

@@ -6,17 +6,33 @@ import {
   useActivitiesStore,
   taskUrgency,
   formatDateTime,
+  type ActivityType,
   type DashboardTask,
   type TaskScope,
   type Urgency,
 } from '@/stores/activities'
+
+type StatusFilter = 'all' | 'open' | 'closed'
 
 const { t } = useI18n()
 const store = useActivitiesStore()
 const { dashboardTasks, dashboardLoading, dashboardError } = storeToRefs(store)
 
 const scope = ref<TaskScope>('mine')
-const showCompleted = ref(false)
+const statusFilter = ref<StatusFilter>('all')
+
+const STATUS_FILTERS: StatusFilter[] = ['all', 'open', 'closed']
+
+const ICONS: Record<ActivityType, string> = {
+  call: '📞',
+  meeting: '👥',
+  email: '✉️',
+  note: '📝',
+  task: '✅',
+}
+function typeLabel(type: ActivityType): string {
+  return t('adminCustomers.actType_' + type)
+}
 
 const URGENCIES: { key: Urgency; color: string }[] = [
   { key: 'overdue', color: '#b3122e' },
@@ -25,9 +41,14 @@ const URGENCIES: { key: Urgency; color: string }[] = [
   { key: 'later', color: '#9aa6bd' },
 ]
 
-const openTasks = computed(() => dashboardTasks.value.filter((tk) => null === tk.completedAt))
-const completedTasks = computed(() => dashboardTasks.value.filter((tk) => null !== tk.completedAt))
-const totalOpen = computed(() => openTasks.value.length)
+// Open / closed across every activity type.
+const openItems = computed(() => dashboardTasks.value.filter((tk) => null === tk.completedAt))
+const closedItems = computed(() => dashboardTasks.value.filter((tk) => null !== tk.completedAt))
+
+// The donut summarises open *tasks* by due-date urgency — the actionable
+// subset. Non-task events have no due date, so they stay out of it.
+const openTaskItems = computed(() => openItems.value.filter((tk) => tk.type === 'task'))
+const openTaskCount = computed(() => openTaskItems.value.length)
 
 function urgencyOf(tk: DashboardTask): Urgency {
   return taskUrgency(tk.occurredAt)
@@ -36,7 +57,7 @@ function urgencyOf(tk: DashboardTask): Urgency {
 const segments = computed(() =>
   URGENCIES.map((u) => ({
     ...u,
-    count: openTasks.value.filter((tk) => urgencyOf(tk) === u.key).length,
+    count: openTaskItems.value.filter((tk) => urgencyOf(tk) === u.key).length,
   })),
 )
 
@@ -45,7 +66,7 @@ const R = 60
 const C = 2 * Math.PI * R
 
 const donut = computed(() => {
-  const total = totalOpen.value
+  const total = openTaskCount.value
   let acc = 0
   return segments.value
     .filter((s) => s.count > 0)
@@ -57,12 +78,22 @@ const donut = computed(() => {
     })
 })
 
-// Open tasks sorted by due date ascending (most urgent first).
+// Open soonest-first (urgency); closed most-recently-closed first.
 const sortedOpen = computed(() =>
-  [...openTasks.value].sort((a, b) => (a.occurredAt < b.occurredAt ? -1 : a.occurredAt > b.occurredAt ? 1 : a.id - b.id)),
+  [...openItems.value].sort((a, b) => (a.occurredAt < b.occurredAt ? -1 : a.occurredAt > b.occurredAt ? 1 : a.id - b.id)),
 )
+const sortedClosed = computed(() =>
+  [...closedItems.value].sort((a, b) => {
+    const ax = a.completedAt ?? ''
+    const bx = b.completedAt ?? ''
+    return ax > bx ? -1 : ax < bx ? 1 : b.id - a.id
+  }),
+)
+const showOpen = computed(() => statusFilter.value !== 'closed')
+const showClosed = computed(() => statusFilter.value !== 'open')
 
 function colorOf(tk: DashboardTask): string {
+  if (tk.type !== 'task') return '#9aa6bd'
   return URGENCIES.find((u) => u.key === urgencyOf(tk))?.color ?? '#9aa6bd'
 }
 
@@ -93,14 +124,28 @@ onMounted(reload)
         <p>{{ t('adminTasks.subtitle') }}</p>
       </div>
 
-      <!-- ── Scope toggle ──────────────────────────────────────────── -->
-      <div class="scope-toggle" role="tablist">
-        <button type="button" :class="{ 'is-active': scope === 'mine' }" @click="setScope('mine')">
-          {{ t('adminTasks.scopeMine') }}
-        </button>
-        <button type="button" :class="{ 'is-active': scope === 'all' }" @click="setScope('all')">
-          {{ t('adminTasks.scopeAll') }}
-        </button>
+      <!-- ── Scope + status filter ─────────────────────────────────── -->
+      <div class="tk-filters">
+        <div class="scope-toggle" role="tablist">
+          <button type="button" :class="{ 'is-active': scope === 'mine' }" @click="setScope('mine')">
+            {{ t('adminTasks.scopeMine') }}
+          </button>
+          <button type="button" :class="{ 'is-active': scope === 'all' }" @click="setScope('all')">
+            {{ t('adminTasks.scopeAll') }}
+          </button>
+        </div>
+
+        <div class="scope-toggle" role="tablist">
+          <button
+            v-for="f in STATUS_FILTERS"
+            :key="f"
+            type="button"
+            :class="{ 'is-active': statusFilter === f }"
+            @click="statusFilter = f"
+          >
+            {{ t('adminTasks.filter_' + f) }}
+          </button>
+        </div>
       </div>
 
       <p v-if="dashboardLoading" class="state">{{ t('adminTasks.loading') }}</p>
@@ -129,7 +174,7 @@ onMounted(reload)
                 :stroke-dashoffset="seg.offset"
               />
             </g>
-            <text x="80" y="74" text-anchor="middle" class="donut-num">{{ totalOpen }}</text>
+            <text x="80" y="74" text-anchor="middle" class="donut-num">{{ openTaskCount }}</text>
             <text x="80" y="92" text-anchor="middle" class="donut-label">{{ t('adminTasks.openTotal') }}</text>
           </svg>
 
@@ -142,27 +187,25 @@ onMounted(reload)
             <li class="legend--done">
               <span class="legend-dot" style="background: #1c7a45"></span>
               <span class="legend-label">{{ t('adminTasks.completed') }}</span>
-              <span class="legend-count">{{ completedTasks.length }}</span>
+              <span class="legend-count">{{ closedItems.length }}</span>
             </li>
           </ul>
         </div>
 
-        <!-- ── List ───────────────────────────────────────────────── -->
-        <div class="tk-panel">
-          <div class="tk-list-head">
-            <h2>{{ t('adminTasks.openTasks') }}</h2>
-            <button type="button" class="btn-ghost" @click="showCompleted = !showCompleted">
-              {{ showCompleted ? t('adminTasks.hideCompleted') : t('adminTasks.showCompleted') }}
-            </button>
-          </div>
+        <!-- ── Open ───────────────────────────────────────────────── -->
+        <div v-if="showOpen" class="tk-panel">
+          <h2 class="tk-section-head">
+            {{ t('adminTasks.openTasks') }} <span class="tk-count">{{ sortedOpen.length }}</span>
+          </h2>
 
           <p v-if="sortedOpen.length === 0" class="state">{{ t('adminTasks.empty') }}</p>
 
           <ul v-else class="tk-list">
             <li v-for="tk in sortedOpen" :key="tk.id" class="tk-row">
-              <label class="tk-check">
+              <label class="tk-check" :title="t('adminCustomers.actClose')">
                 <input type="checkbox" :checked="false" @change="onToggleDone(tk)" />
               </label>
+              <span class="tk-icon" :title="typeLabel(tk.type)">{{ ICONS[tk.type] }}</span>
               <span class="tk-due" :style="{ color: colorOf(tk) }">{{ formatDateTime(tk.occurredAt) }}</span>
               <div class="tk-main">
                 <span class="tk-subject">{{ tk.subject }}</span>
@@ -170,34 +213,42 @@ onMounted(reload)
                   <RouterLink :to="{ name: 'admin-customer-detail', params: { id: tk.customerId } }" class="tk-cust">
                     {{ tk.customerName }}
                   </RouterLink>
-                  <span v-if="tk.opportunityTitle" class="tk-chip">{{ tk.opportunityTitle }}</span>
+                  <span class="tk-chip">{{ typeLabel(tk.type) }}</span>
+                  <span v-if="tk.opportunityTitle" class="tk-chip tk-chip--opp">{{ tk.opportunityTitle }}</span>
                   <span v-if="tk.createdByName" class="tk-by">· {{ tk.createdByName }}</span>
                 </span>
               </div>
             </li>
           </ul>
+        </div>
 
-          <!-- Completed -->
-          <template v-if="showCompleted && completedTasks.length">
-            <h3 class="tk-completed-head">{{ t('adminTasks.completed') }}</h3>
-            <ul class="tk-list">
-              <li v-for="tk in completedTasks" :key="tk.id" class="tk-row is-done">
-                <label class="tk-check">
-                  <input type="checkbox" checked @change="onToggleDone(tk)" />
-                </label>
-                <span class="tk-due">{{ formatDateTime(tk.occurredAt) }}</span>
-                <div class="tk-main">
-                  <span class="tk-subject">{{ tk.subject }}</span>
-                  <span class="tk-meta">
-                    <RouterLink :to="{ name: 'admin-customer-detail', params: { id: tk.customerId } }" class="tk-cust">
-                      {{ tk.customerName }}
-                    </RouterLink>
-                    <span v-if="tk.opportunityTitle" class="tk-chip">{{ tk.opportunityTitle }}</span>
-                  </span>
-                </div>
-              </li>
-            </ul>
-          </template>
+        <!-- ── Closed ─────────────────────────────────────────────── -->
+        <div v-if="showClosed" class="tk-panel">
+          <h2 class="tk-section-head tk-section-head--closed">
+            {{ t('adminTasks.closedTitle') }} <span class="tk-count">{{ sortedClosed.length }}</span>
+          </h2>
+
+          <p v-if="sortedClosed.length === 0" class="state">{{ t('adminTasks.emptyClosed') }}</p>
+
+          <ul v-else class="tk-list">
+            <li v-for="tk in sortedClosed" :key="tk.id" class="tk-row is-done">
+              <label class="tk-check" :title="t('adminCustomers.actReopen')">
+                <input type="checkbox" checked @change="onToggleDone(tk)" />
+              </label>
+              <span class="tk-icon" :title="typeLabel(tk.type)">{{ ICONS[tk.type] }}</span>
+              <span class="tk-due">{{ formatDateTime(tk.occurredAt) }}</span>
+              <div class="tk-main">
+                <span class="tk-subject">{{ tk.subject }}</span>
+                <span class="tk-meta">
+                  <RouterLink :to="{ name: 'admin-customer-detail', params: { id: tk.customerId } }" class="tk-cust">
+                    {{ tk.customerName }}
+                  </RouterLink>
+                  <span class="tk-chip">{{ typeLabel(tk.type) }}</span>
+                  <span v-if="tk.opportunityTitle" class="tk-chip tk-chip--opp">{{ tk.opportunityTitle }}</span>
+                </span>
+              </div>
+            </li>
+          </ul>
         </div>
       </template>
     </div>
@@ -237,9 +288,15 @@ onMounted(reload)
   line-height: 1.5;
 }
 
+.tk-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-bottom: 1.5rem;
+}
+
 .scope-toggle {
   display: inline-flex;
-  margin-bottom: 1.5rem;
   border: 1px solid #d4dae6;
   border-radius: 0.55rem;
   overflow: hidden;
@@ -339,19 +396,38 @@ onMounted(reload)
 }
 
 /* ── List ─────────────────────────────────────────────────────────── */
-.tk-list-head {
+.tk-section-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.1rem;
-}
-
-.tk-list-head h2 {
-  margin: 0;
+  gap: 0.6rem;
+  margin: 0 0 1.1rem;
   color: var(--login-secondary, #0c1c40);
   font-size: 1.25rem;
   font-weight: 700;
+}
+
+.tk-section-head--closed {
+  color: #545f71;
+}
+
+.tk-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.45rem;
+  background: #eef1f6;
+  border-radius: 100vw;
+  color: #545f71;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.tk-icon {
+  flex-shrink: 0;
+  font-size: 1.05rem;
+  line-height: 1.4;
 }
 
 .btn-ghost {

@@ -158,13 +158,9 @@ final class AdminCustomerActivityController extends AbstractController
         }
 
         // completedAt is generally toggled via the /done endpoint, but accept
-        // an explicit value too (e.g. clearing it when changing type).
+        // an explicit value too. Open/closed applies to every type now.
         if (\array_key_exists('completedAt', $payload)) {
             $activity->setCompletedAt($this->parseDateTime($payload['completedAt']));
-        }
-        // A non-task can't stay "done".
-        if (Activity::TYPE_TASK !== $activity->getType()) {
-            $activity->setCompletedAt(null);
         }
 
         if (\array_key_exists('contactId', $payload)) {
@@ -270,6 +266,7 @@ final class AdminCustomerActivityController extends AbstractController
             'body' => $a->getBody(),
             'occurredAt' => $a->getOccurredAt()->format(\DateTimeInterface::ATOM),
             'completedAt' => $a->getCompletedAt()?->format(\DateTimeInterface::ATOM),
+            'isOpen' => $a->isOpen(),
             'isOpenTask' => $a->isOpenTask(),
             'contactId' => $contact?->getId(),
             'contactName' => null === $contact ? null : (trim($contact->getLastName().' '.$contact->getFirstName()) ?: $contact->getEmail()),

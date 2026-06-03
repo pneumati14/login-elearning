@@ -14,6 +14,7 @@ export interface Activity {
   body: string | null
   occurredAt: string
   completedAt: string | null
+  isOpen: boolean
   isOpenTask: boolean
   contactId: number | null
   contactName: string | null
@@ -45,13 +46,15 @@ export function emptyActivityFields(): ActivityFields {
   }
 }
 
-/** A task as returned by the cross-customer dashboard feed. */
+/** An activity as returned by the cross-customer dashboard feed (any type). */
 export interface DashboardTask {
   id: number
+  type: ActivityType
   subject: string
   body: string | null
   occurredAt: string
   completedAt: string | null
+  isOpen: boolean
   isOpenTask: boolean
   customerId: number
   customerName: string
@@ -131,9 +134,11 @@ export const useActivitiesStore = defineStore('activities', () => {
       if (!response.ok) {
         return { ok: false, error: await readError(response, 'A művelet nem sikerült.') }
       }
-      const updated = (await response.json()) as { completedAt: string | null; isOpenTask: boolean }
+      const updated = (await response.json()) as { completedAt: string | null; isOpen: boolean; isOpenTask: boolean }
       dashboardTasks.value = dashboardTasks.value.map((t) =>
-        t.id === task.id ? { ...t, completedAt: updated.completedAt, isOpenTask: updated.isOpenTask } : t,
+        t.id === task.id
+          ? { ...t, completedAt: updated.completedAt, isOpen: updated.isOpen, isOpenTask: updated.isOpenTask }
+          : t,
       )
       return { ok: true }
     } catch {

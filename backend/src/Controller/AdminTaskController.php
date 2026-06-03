@@ -12,11 +12,12 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
- * Cross-customer task feed for the task dashboard — administrators only.
- * Tasks are [[Activity]] rows of type "task". `scope=mine` (default)
- * limits to the current admin's tasks; `scope=all` returns everyone's.
- * Mutations (mark done, edit) still go through the per-customer activity
- * controller.
+ * Cross-customer activity feed for the dashboard. Returns every activity
+ * type (call, meeting, email, note, task), both open and closed — the
+ * dashboard filters by status client-side. `scope=mine` (default) limits
+ * to the current user's activities; `scope=all` returns everyone's.
+ * Mutations (close/reopen, edit) still go through the per-customer
+ * activity controller.
  */
 #[Route('/api/admin/tasks', name: 'api_admin_tasks_')]
 #[IsGranted('ROLE_SALES')]
@@ -42,7 +43,7 @@ final class AdminTaskController extends AbstractController
 
         $data = array_map(
             fn (Activity $a): array => $this->serialize($a),
-            $this->activities->findTasks($createdBy),
+            $this->activities->findFeed($createdBy),
         );
 
         return $this->json($data);
@@ -60,10 +61,12 @@ final class AdminTaskController extends AbstractController
 
         return [
             'id' => $a->getId(),
+            'type' => $a->getType(),
             'subject' => $a->getSubject(),
             'body' => $a->getBody(),
             'occurredAt' => $a->getOccurredAt()->format(\DateTimeInterface::ATOM),
             'completedAt' => $a->getCompletedAt()?->format(\DateTimeInterface::ATOM),
+            'isOpen' => $a->isOpen(),
             'isOpenTask' => $a->isOpenTask(),
             'customerId' => $customer->getId(),
             'customerName' => $customer->getName(),

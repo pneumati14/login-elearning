@@ -12,9 +12,10 @@ use Doctrine\ORM\Mapping as ORM;
  * delete). The customer-detail "timeline" is just these sorted by
  * occurredAt DESC.
  *
- * Tasks are real to-dos: occurredAt is the due date/time and
- * completedAt marks them done (null = still open). Other types are
- * logged events, where occurredAt is when they happened.
+ * Every activity carries an open/closed status: completedAt is null
+ * while open and set once closed — for all types, not just tasks. For
+ * tasks occurredAt is the due date/time (so an open task can be
+ * "overdue"); for the other types it is when the event happened.
  */
 #[ORM\Entity(repositoryClass: ActivityRepository::class)]
 #[ORM\Table(name: 'activity')]
@@ -65,7 +66,7 @@ class Activity
     #[ORM\Column]
     private \DateTimeImmutable $occurredAt;
 
-    /** For tasks: set when done, null while open. Ignored for other types. */
+    /** When the activity was closed; null while still open (any type). */
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $completedAt = null;
 
@@ -196,7 +197,13 @@ class Activity
         return $this;
     }
 
-    /** A task that is not yet done. */
+    /** Open = not yet closed (applies to every activity type). */
+    public function isOpen(): bool
+    {
+        return null === $this->completedAt;
+    }
+
+    /** An open task — used for due-date / overdue highlighting. */
     public function isOpenTask(): bool
     {
         return self::TYPE_TASK === $this->type && null === $this->completedAt;

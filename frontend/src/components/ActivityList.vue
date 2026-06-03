@@ -205,17 +205,26 @@ function contactName(a: Activity): string {
         v-for="a in activities"
         :key="a.id"
         class="tl-item"
-        :class="{ 'is-open-task': a.isOpenTask, 'is-overdue': isOverdue(a), 'is-done': a.type === 'task' && a.completedAt }"
+        :class="{ 'is-open-task': a.isOpenTask, 'is-overdue': isOverdue(a), 'is-done': null !== a.completedAt }"
       >
         <span class="tl-icon" :title="typeLabel(a.type)">{{ ICONS[a.type] }}</span>
         <div class="tl-body">
           <div class="tl-top">
-            <label v-if="a.type === 'task'" class="tl-check">
+            <label class="tl-check" :title="null !== a.completedAt ? t('adminCustomers.actReopen') : t('adminCustomers.actClose')">
               <input type="checkbox" :checked="null !== a.completedAt" @change="onToggleDone(a)" />
             </label>
             <span class="tl-subject">{{ a.subject }}</span>
-            <span v-if="a.isOpenTask" class="tl-badge" :class="{ 'tl-badge--overdue': isOverdue(a) }">
-              {{ isOverdue(a) ? t('adminCustomers.actOverdue') : t('adminCustomers.actOpen') }}
+            <span
+              class="tl-badge"
+              :class="{ 'tl-badge--overdue': isOverdue(a), 'tl-badge--done': null !== a.completedAt }"
+            >
+              {{
+                null !== a.completedAt
+                  ? t('adminCustomers.actClosed')
+                  : isOverdue(a)
+                    ? t('adminCustomers.actOverdue')
+                    : t('adminCustomers.actOpen')
+              }}
             </span>
           </div>
           <div class="tl-meta">
@@ -454,6 +463,11 @@ function contactName(a: Activity): string {
 .tl-badge--overdue {
   background: #fde8ec;
   color: #b3122e;
+}
+
+.tl-badge--done {
+  background: #e3f6ec;
+  color: #1c7a45;
 }
 
 .tl-meta {
