@@ -17,9 +17,10 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
  * User management. Creating, deleting, resetting passwords and changing
- * roles is administrators only. Reading the list is also open to sales
- * managers — they need it to pick a salesperson when assigning customers.
- * There is no public registration; admins create every account.
+ * roles is administrators only. Reading the list is open to all CRM staff
+ * (ROLE_SALES) — they need it to pick a responsible user for tasks and a
+ * salesperson for customer assignments. There is no public registration;
+ * admins create every account.
  */
 #[Route('/api/admin/users', name: 'api_admin_users_')]
 final class AdminUserController extends AbstractController
@@ -34,7 +35,7 @@ final class AdminUserController extends AbstractController
     }
 
     #[Route('', name: 'list', methods: ['GET'])]
-    #[IsGranted('ROLE_SALES_MANAGER')]
+    #[IsGranted('ROLE_SALES')]
     public function list(): JsonResponse
     {
         $data = array_map(

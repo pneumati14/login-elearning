@@ -41,23 +41,25 @@ class ActivityRepository extends ServiceEntityRepository
     }
 
     /**
-     * The cross-customer activity feed (every type, skipping soft-deleted
-     * customers), ordered by occurredAt ascending so open tasks surface by
-     * urgency. Open and closed are both returned; the dashboard filters by
-     * status client-side. Optionally limited to a given creator.
+     * The cross-customer activity feed (every type), ordered by occurredAt
+     * ascending so open tasks surface by urgency. Open and closed are both
+     * returned; the dashboard filters by status client-side. Standalone
+     * (customer-less) tasks are included; customer-linked ones are skipped
+     * when their customer is soft-deleted. Optionally limited to one
+     * assignee (the "my tasks" scope = tasks I'm responsible for).
      *
      * @return Activity[]
      */
-    public function findFeed(?User $createdBy = null): array
+    public function findFeed(?User $assignee = null): array
     {
         $qb = $this->createQueryBuilder('a')
-            ->innerJoin('a.customer', 'c')
-            ->andWhere('c.deletedAt IS NULL')
+            ->leftJoin('a.customer', 'c')
+            ->andWhere('a.customer IS NULL OR c.deletedAt IS NULL')
             ->orderBy('a.occurredAt', 'ASC')
             ->addOrderBy('a.id', 'ASC');
 
-        if (null !== $createdBy) {
-            $qb->andWhere('a.createdBy = :user')->setParameter('user', $createdBy);
+        if (null !== $assignee) {
+            $qb->andWhere('a.assignee = :assignee')->setParameter('assignee', $assignee);
         }
 
         return $qb->getQuery()->getResult();

@@ -21,6 +21,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'activity')]
 #[ORM\Index(name: 'idx_activity_customer', columns: ['customer_id'])]
 #[ORM\Index(name: 'idx_activity_opportunity', columns: ['opportunity_id'])]
+#[ORM\Index(name: 'idx_activity_assignee', columns: ['assignee_id'])]
 class Activity
 {
     public const TYPE_CALL = 'call';
@@ -36,9 +37,10 @@ class Activity
     #[ORM\Column]
     private ?int $id = null;
 
+    /** The customer this activity belongs to; null for standalone tasks. */
     #[ORM\ManyToOne(targetEntity: Customer::class, inversedBy: 'activities')]
-    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
-    private Customer $customer;
+    #[ORM\JoinColumn(nullable: true, onDelete: 'CASCADE')]
+    private ?Customer $customer = null;
 
     #[ORM\ManyToOne(targetEntity: Contact::class)]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -52,6 +54,11 @@ class Activity
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?User $createdBy = null;
+
+    /** The user responsible for this activity (esp. tasks); optional. */
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $assignee = null;
 
     #[ORM\Column(length: 16)]
     private string $type = self::TYPE_NOTE;
@@ -89,12 +96,12 @@ class Activity
         return $this->id;
     }
 
-    public function getCustomer(): Customer
+    public function getCustomer(): ?Customer
     {
         return $this->customer;
     }
 
-    public function setCustomer(Customer $customer): static
+    public function setCustomer(?Customer $customer): static
     {
         $this->customer = $customer;
 
@@ -133,6 +140,18 @@ class Activity
     public function setCreatedBy(?User $createdBy): static
     {
         $this->createdBy = $createdBy;
+
+        return $this;
+    }
+
+    public function getAssignee(): ?User
+    {
+        return $this->assignee;
+    }
+
+    public function setAssignee(?User $assignee): static
+    {
+        $this->assignee = $assignee;
 
         return $this;
     }

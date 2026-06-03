@@ -20,6 +20,8 @@ export interface Activity {
   contactName: string | null
   opportunityId: number | null
   opportunityTitle: string | null
+  assigneeId: number | null
+  assigneeName: string | null
   createdByName: string | null
   createdAt: string
   updatedAt: string
@@ -33,6 +35,7 @@ export interface ActivityFields {
   occurredAt: string
   contactId: number | null
   opportunityId: number | null
+  assigneeId: number | null
 }
 
 export function emptyActivityFields(): ActivityFields {
@@ -43,7 +46,21 @@ export function emptyActivityFields(): ActivityFields {
     occurredAt: '',
     contactId: null,
     opportunityId: null,
+    assigneeId: null,
   }
+}
+
+/** Fields for creating a task straight from the dashboard. */
+export interface NewTask {
+  subject: string
+  body: string | null
+  occurredAt: string
+  assigneeId: number | null
+  customerId: number | null
+}
+
+export function emptyNewTask(): NewTask {
+  return { subject: '', body: null, occurredAt: '', assigneeId: null, customerId: null }
 }
 
 /** An activity as returned by the cross-customer dashboard feed (any type). */
@@ -56,12 +73,14 @@ export interface DashboardTask {
   completedAt: string | null
   isOpen: boolean
   isOpenTask: boolean
-  customerId: number
-  customerName: string
+  customerId: number | null
+  customerName: string | null
   opportunityId: number | null
   opportunityTitle: string | null
   contactName: string | null
   createdByName: string | null
+  assigneeId: number | null
+  assigneeName: string | null
 }
 
 export type TaskScope = 'mine' | 'all'
@@ -118,19 +137,35 @@ export const useActivitiesStore = defineStore('activities', () => {
     }
   }
 
-  /** Toggle a dashboard task done/open via the per-customer endpoint. */
+  /** Create a task from the dashboard (optional customer + assignee). */
+  async function createTask(payload: NewTask): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/tasks`, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) {
+        return { ok: false, error: await readError(response, 'A feladat létrehozása nem sikerült.') }
+      }
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  /** Toggle a dashboard item done/open via the dashboard-wide endpoint
+   *  (works for customer-less tasks too). */
   async function toggleTaskDone(task: DashboardTask): Promise<MutationResult> {
     const done = null === task.completedAt
     try {
-      const response = await fetch(
-        `${API_URL}/admin/customers/${task.customerId}/activities/${task.id}/done`,
-        {
-          method: 'PUT',
-          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          body: JSON.stringify({ done }),
-        },
-      )
+      const response = await fetch(`${API_URL}/admin/tasks/${task.id}/done`, {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ done }),
+      })
       if (!response.ok) {
         return { ok: false, error: await readError(response, 'A művelet nem sikerült.') }
       }
@@ -270,6 +305,7 @@ export const useActivitiesStore = defineStore('activities', () => {
     dashboardLoading,
     dashboardError,
     fetchTasks,
+    createTask,
     toggleTaskDone,
   }
 })

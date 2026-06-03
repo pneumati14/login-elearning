@@ -189,6 +189,19 @@ final class AdminCustomerActivityController extends AbstractController
             }
         }
 
+        if (\array_key_exists('assigneeId', $payload)) {
+            $assigneeId = $payload['assigneeId'];
+            if (null === $assigneeId || '' === $assigneeId) {
+                $activity->setAssignee(null);
+            } else {
+                $assignee = $this->entityManager->find(User::class, (int) $assigneeId);
+                if (!$assignee instanceof User) {
+                    return 'A megadott felelős nem található.';
+                }
+                $activity->setAssignee($assignee);
+            }
+        }
+
         return null;
     }
 
@@ -208,10 +221,11 @@ final class AdminCustomerActivityController extends AbstractController
         if (!$activity instanceof Activity) {
             return null;
         }
-        if ($activity->getCustomer()->getId() !== $customerId) {
+        $customer = $activity->getCustomer();
+        if (null === $customer || $customer->getId() !== $customerId) {
             return null;
         }
-        if (null !== $activity->getCustomer()->getDeletedAt()) {
+        if (null !== $customer->getDeletedAt()) {
             return null;
         }
 
@@ -258,6 +272,7 @@ final class AdminCustomerActivityController extends AbstractController
         $contact = $a->getContact();
         $opportunity = $a->getOpportunity();
         $createdBy = $a->getCreatedBy();
+        $assignee = $a->getAssignee();
 
         return [
             'id' => $a->getId(),
@@ -275,6 +290,10 @@ final class AdminCustomerActivityController extends AbstractController
             'createdByName' => null === $createdBy
                 ? null
                 : (trim($createdBy->getFirstName().' '.$createdBy->getLastName()) ?: $createdBy->getEmail()),
+            'assigneeId' => $assignee?->getId(),
+            'assigneeName' => null === $assignee
+                ? null
+                : (trim($assignee->getFirstName().' '.$assignee->getLastName()) ?: $assignee->getEmail()),
             'createdAt' => $a->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updatedAt' => $a->getUpdatedAt()->format(\DateTimeInterface::ATOM),
         ];

@@ -81,6 +81,9 @@ function openEdit(a: Activity): void {
   form.occurredAt = isoToLocalInput(a.occurredAt)
   form.contactId = a.contactId
   form.opportunityId = a.opportunityId
+  // Preserve the responsible user across edits (the timeline form has no
+  // picker yet, but we must not clear an assignee set from the dashboard).
+  form.assigneeId = a.assigneeId
   formError.value = null
   showForm.value = true
 }
