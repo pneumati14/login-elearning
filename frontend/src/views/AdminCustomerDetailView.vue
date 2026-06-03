@@ -11,6 +11,7 @@ import {
 } from '@/stores/customers'
 import CustomerEditor from '@/components/CustomerEditor.vue'
 import CustomerContactsPanel from '@/components/CustomerContactsPanel.vue'
+import CustomerOpportunitiesPanel from '@/components/CustomerOpportunitiesPanel.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 
 const { t } = useI18n()
@@ -31,7 +32,7 @@ const activeTab = ref<TabKey>('overview')
 const tabs: { key: TabKey; label: string; ready: boolean }[] = [
   { key: 'overview', label: 'tabOverview', ready: true },
   { key: 'contacts', label: 'tabContacts', ready: true },
-  { key: 'opportunities', label: 'tabOpportunities', ready: false },
+  { key: 'opportunities', label: 'tabOpportunities', ready: true },
   { key: 'timeline', label: 'tabTimeline', ready: false },
 ]
 
@@ -187,6 +188,11 @@ function salesPeriod(a: SalesAssignment): string {
         <!-- ── Contacts ─────────────────────────────────────────────── -->
         <div v-else-if="activeTab === 'contacts'" class="cust-panel">
           <CustomerContactsPanel :customer="customer" />
+        </div>
+
+        <!-- ── Opportunities (kanban) ───────────────────────────────── -->
+        <div v-else-if="activeTab === 'opportunities'" class="cust-panel">
+          <CustomerOpportunitiesPanel :customer="customer" />
         </div>
 
         <!-- ── Placeholder tabs (future CRM phases) ─────────────────── -->

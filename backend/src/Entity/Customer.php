@@ -63,6 +63,14 @@ class Customer
     #[ORM\OneToMany(mappedBy: 'customer', targetEntity: Contact::class, cascade: ['remove'], orphanRemoval: true)]
     private Collection $contacts;
 
+    /**
+     * Sales opportunities (deals) for this customer. Removed with the customer.
+     *
+     * @var Collection<int, Opportunity>
+     */
+    #[ORM\OneToMany(mappedBy: 'customer', targetEntity: Opportunity::class, cascade: ['remove'], orphanRemoval: true)]
+    private Collection $opportunities;
+
     #[ORM\Column(type: 'date_immutable', nullable: true)]
     private ?\DateTimeImmutable $validFrom = null;
 
@@ -88,6 +96,7 @@ class Customer
         $this->billingAddress = new Address();
         $this->salesAssignments = new ArrayCollection();
         $this->contacts = new ArrayCollection();
+        $this->opportunities = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -191,6 +200,14 @@ class Customer
     public function getContacts(): Collection
     {
         return $this->contacts;
+    }
+
+    /**
+     * @return Collection<int, Opportunity>
+     */
+    public function getOpportunities(): Collection
+    {
+        return $this->opportunities;
     }
 
     public function getValidFrom(): ?\DateTimeImmutable
