@@ -96,6 +96,18 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresAdmin: true },
     },
     {
+      path: '/admin/opportunity-types',
+      name: 'admin-opportunity-types',
+      component: () => import('../views/AdminOpportunityTypesView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/opportunity-types/:id',
+      name: 'admin-opportunity-type-detail',
+      component: () => import('../views/AdminOpportunityTypeDetailView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
       path: '/account',
       name: 'account',
       component: () => import('../views/AccountView.vue'),

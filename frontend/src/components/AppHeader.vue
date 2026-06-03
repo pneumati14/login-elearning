@@ -74,6 +74,7 @@ const panels = computed<Record<string, Panel>>(() => {
         { label: t('nav.adminPublications'), icon: 'publications.svg', type: 'route', to: '/admin/publications' },
         { label: t('nav.adminPositions'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/positions' },
         { label: t('nav.adminCustomers'), icon: 'team-career.svg', type: 'route', to: '/admin/customers' },
+        { label: t('nav.adminOpportunityTypes'), icon: 'competency.svg', type: 'route', to: '/admin/opportunity-types' },
       ],
     }
   }
@@ -181,11 +182,11 @@ const iconUrl = (name: string) => `/frontend-files/images/menu-images/${name}`
           <div ref="root" class="top-menu">
             <div class="dropdown">
               <a
-                href="javascript:void(0);"
+                href="#"
                 class="menu-toggler dropdown-toggle nav-link"
                 :class="{ show: menuOpen }"
                 :aria-expanded="menuOpen"
-                @click="toggleMenu"
+                @click.prevent="toggleMenu"
               >
                 <svg viewBox="0 0 16 16"><use xlink:href="/frontend-files/images/icons.svg#menu"></use></svg>
               </a>
