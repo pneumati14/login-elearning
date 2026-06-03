@@ -12,6 +12,7 @@ import {
 import CustomerEditor from '@/components/CustomerEditor.vue'
 import CustomerContactsPanel from '@/components/CustomerContactsPanel.vue'
 import CustomerOpportunitiesPanel from '@/components/CustomerOpportunitiesPanel.vue'
+import ActivityList from '@/components/ActivityList.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 
 const { t } = useI18n()
@@ -33,7 +34,7 @@ const tabs: { key: TabKey; label: string; ready: boolean }[] = [
   { key: 'overview', label: 'tabOverview', ready: true },
   { key: 'contacts', label: 'tabContacts', ready: true },
   { key: 'opportunities', label: 'tabOpportunities', ready: true },
-  { key: 'timeline', label: 'tabTimeline', ready: false },
+  { key: 'timeline', label: 'tabTimeline', ready: true },
 ]
 
 async function load(): Promise<void> {
@@ -195,9 +196,9 @@ function salesPeriod(a: SalesAssignment): string {
           <CustomerOpportunitiesPanel :customer="customer" />
         </div>
 
-        <!-- ── Placeholder tabs (future CRM phases) ─────────────────── -->
-        <div v-else class="cust-panel placeholder">
-          <p class="coming-soon">{{ t('adminCustomers.comingSoon') }}</p>
+        <!-- ── Timeline (activities) ────────────────────────────────── -->
+        <div v-else-if="activeTab === 'timeline'" class="cust-panel">
+          <ActivityList :customer="customer" />
         </div>
       </template>
     </div>

@@ -71,6 +71,14 @@ class Customer
     #[ORM\OneToMany(mappedBy: 'customer', targetEntity: Opportunity::class, cascade: ['remove'], orphanRemoval: true)]
     private Collection $opportunities;
 
+    /**
+     * Logged activities (calls, meetings, notes, tasks…). Removed with the customer.
+     *
+     * @var Collection<int, Activity>
+     */
+    #[ORM\OneToMany(mappedBy: 'customer', targetEntity: Activity::class, cascade: ['remove'], orphanRemoval: true)]
+    private Collection $activities;
+
     #[ORM\Column(type: 'date_immutable', nullable: true)]
     private ?\DateTimeImmutable $validFrom = null;
 
@@ -97,6 +105,7 @@ class Customer
         $this->salesAssignments = new ArrayCollection();
         $this->contacts = new ArrayCollection();
         $this->opportunities = new ArrayCollection();
+        $this->activities = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -208,6 +217,14 @@ class Customer
     public function getOpportunities(): Collection
     {
         return $this->opportunities;
+    }
+
+    /**
+     * @return Collection<int, Activity>
+     */
+    public function getActivities(): Collection
+    {
+        return $this->activities;
     }
 
     public function getValidFrom(): ?\DateTimeImmutable

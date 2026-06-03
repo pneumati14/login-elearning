@@ -14,6 +14,7 @@ import {
 } from '@/stores/opportunities'
 import { useOpportunityTypesStore, typeStatus, type OpportunityType } from '@/stores/opportunityTypes'
 import { useProductsStore } from '@/stores/products'
+import ActivityList from '@/components/ActivityList.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 
@@ -440,6 +441,12 @@ const hasTypes = computed(() => typesStore.types.length > 0)
           </template>
         </div>
 
+        <!-- ── Linked activities ────────────────────────────────────── -->
+        <div v-if="null !== editingId" class="opp-activities">
+          <span class="opp-activities-title">{{ t('adminCustomers.tabTimeline') }}</span>
+          <ActivityList :customer="customer" :opportunity-id="editingId" />
+        </div>
+
         <p v-if="formError" class="msg msg--error">{{ formError }}</p>
 
         <div class="form-actions">
@@ -850,6 +857,21 @@ const hasTypes = computed(() => typesStore.types.length > 0)
   margin-bottom: 1rem;
   padding-top: 0.6rem;
   border-top: 1px solid #eef1f6;
+}
+
+/* ── Linked activities ────────────────────────────────────────────── */
+.opp-activities {
+  margin-bottom: 1rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid #eef1f6;
+}
+
+.opp-activities-title {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.88rem;
+  font-weight: 700;
 }
 
 .documents-head {
