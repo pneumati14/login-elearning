@@ -9,12 +9,13 @@ import {
   currentSalesAssignments,
   type Customer,
   type CustomerFields,
+  type CustomerStatus,
 } from '@/stores/customers'
 import AddressFieldset from '@/components/AddressFieldset.vue'
 import IconView from '@/components/icons/IconView.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const store = useCustomersStore()
 const { customers, loading, error } = storeToRefs(store)
 
@@ -50,18 +51,80 @@ watch(billingSame, (same) => {
   if (same) form.billingAddress = { ...form.address }
 })
 
-// ── List filter ──────────────────────────────────────────────────────
+// ── List filter, status filter & sorting ─────────────────────────────
 const search = ref('')
+
+type StatusFilter = 'all' | CustomerStatus
+const statusFilter = ref<StatusFilter>('all')
+const STATUS_FILTERS: StatusFilter[] = ['all', 'existing', 'potential']
+
+type SortKey = 'name' | 'fee'
+// Default: biggest monthly fees first — existing customers lead the list.
+const sortKey = ref<SortKey>('fee')
+const sortDir = ref<'asc' | 'desc'>('desc')
+
+function setSort(key: SortKey): void {
+  if (sortKey.value === key) {
+    sortDir.value = 'asc' === sortDir.value ? 'desc' : 'asc'
+  } else {
+    sortKey.value = key
+    sortDir.value = 'fee' === key ? 'desc' : 'asc'
+  }
+}
+
+function sortIndicator(key: SortKey): string {
+  if (sortKey.value !== key) return ''
+  return 'asc' === sortDir.value ? ' ▲' : ' ▼'
+}
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
-  if ('' === q) return customers.value
-  return customers.value.filter((c) =>
-    [c.name, c.email, c.taxNumber, c.address.city, c.address.postalCode, c.address.street]
-      .filter((v): v is string => null !== v && '' !== v)
-      .some((v) => v.toLowerCase().includes(q)),
-  )
+  let list = customers.value
+  if ('all' !== statusFilter.value) {
+    list = list.filter((c) => c.status === statusFilter.value)
+  }
+  if ('' !== q) {
+    list = list.filter((c) =>
+      [c.name, c.email, c.taxNumber, c.address.city, c.address.postalCode, c.address.street]
+        .filter((v): v is string => null !== v && '' !== v)
+        .some((v) => v.toLowerCase().includes(q)),
+    )
+  }
+
+  const dir = 'asc' === sortDir.value ? 1 : -1
+  return [...list].sort((a, b) => {
+    if ('name' === sortKey.value) {
+      return dir * a.name.localeCompare(b.name, 'hu')
+    }
+    // Fee sort: existing customers first (ordered by fee), potentials after
+    // (alphabetically) — the fee only means anything for existing customers.
+    const aExisting = 'existing' === a.status
+    const bExisting = 'existing' === b.status
+    if (aExisting !== bExisting) return aExisting ? -1 : 1
+    if (!aExisting) return a.name.localeCompare(b.name, 'hu')
+    const diff = feeSortValue(a) - feeSortValue(b)
+    return 0 !== diff ? dir * diff : a.name.localeCompare(b.name, 'hu')
+  })
 })
+
+// HUF first (the dominant currency), then the rest — currencies are not
+// converted, so this is a pragmatic ordering, not an exact one.
+function feeSortValue(c: Customer): number {
+  const huf = c.monthlyFeeTotals.find((tt) => 'HUF' === tt.currency)
+  if (huf) return Number(huf.amount)
+  return c.monthlyFeeTotals.reduce((sum, tt) => sum + Number(tt.amount), 0)
+}
+
+function feeLines(c: Customer): string[] {
+  if ('existing' !== c.status || 0 === c.monthlyFeeTotals.length) return ['—']
+  return c.monthlyFeeTotals.map((tt) =>
+    new Intl.NumberFormat(locale.value, {
+      style: 'currency',
+      currency: tt.currency,
+      maximumFractionDigits: 0,
+    }).format(Number(tt.amount)),
+  )
+}
 
 onMounted(() => {
   store.fetchCustomers()
@@ -139,6 +202,13 @@ function validityLabel(c: Customer): string {
             <input v-model="form.name" type="text" required maxlength="255" />
           </label>
           <label class="field">
+            <span>{{ t('adminCustomers.status') }}</span>
+            <select v-model="form.status">
+              <option value="potential">{{ t('adminCustomers.status_potential') }}</option>
+              <option value="existing">{{ t('adminCustomers.status_existing') }}</option>
+            </select>
+          </label>
+          <label class="field">
             <span>{{ t('adminCustomers.website') }}</span>
             <input v-model="form.website" type="text" maxlength="255" placeholder="https://…" />
           </label>
@@ -196,6 +266,18 @@ function validityLabel(c: Customer): string {
         <div class="cust-list-head">
           <h2>{{ t('adminCustomers.existing') }}</h2>
           <div class="cust-list-tools">
+            <div class="status-chips">
+              <button
+                v-for="f in STATUS_FILTERS"
+                :key="f"
+                type="button"
+                class="chip"
+                :class="{ 'is-active': statusFilter === f }"
+                @click="statusFilter = f"
+              >
+                {{ 'all' === f ? t('adminCustomers.filterAll') : t('adminCustomers.status_' + f) }}
+              </button>
+            </div>
             <input
               v-model="search"
               type="search"
@@ -225,7 +307,17 @@ function validityLabel(c: Customer): string {
           <table class="cust-table">
             <thead>
               <tr>
-                <th>{{ t('adminCustomers.colName') }}</th>
+                <th>
+                  <button type="button" class="th-sort" @click="setSort('name')">
+                    {{ t('adminCustomers.colName') }}{{ sortIndicator('name') }}
+                  </button>
+                </th>
+                <th>{{ t('adminCustomers.status') }}</th>
+                <th class="th-num">
+                  <button type="button" class="th-sort" @click="setSort('fee')">
+                    {{ t('adminCustomers.monthlyFee') }}{{ sortIndicator('fee') }}
+                  </button>
+                </th>
                 <th>{{ t('adminCustomers.colCountry') }}</th>
                 <th>{{ t('adminCustomers.colCity') }}</th>
                 <th>{{ t('adminCustomers.colSales') }}</th>
@@ -250,6 +342,14 @@ function validityLabel(c: Customer): string {
                       <template v-if="(c.email || c.phone) && c.website"> · </template>
                       <template v-if="c.website">{{ c.website }}</template>
                     </span>
+                  </td>
+                  <td>
+                    <span class="badge" :class="`badge--${c.status}`">
+                      {{ t('adminCustomers.status_' + c.status) }}
+                    </span>
+                  </td>
+                  <td class="cell-fee">
+                    <div v-for="(line, i) in feeLines(c)" :key="i">{{ line }}</div>
                   </td>
                   <td>{{ c.address.country || '—' }}</td>
                   <td>{{ c.address.city || '—' }}</td>
@@ -405,7 +505,8 @@ function validityLabel(c: Customer): string {
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   padding: 0.55rem 0.7rem;
   background: #f7f8fb;
   border: 1px solid #d4dae6;
@@ -416,7 +517,8 @@ function validityLabel(c: Customer): string {
 }
 
 .field input:focus,
-.field textarea:focus {
+.field textarea:focus,
+.field select:focus {
   outline: 2px solid var(--login-primary, #ed2044);
   outline-offset: -1px;
   background: #fff;
@@ -516,6 +618,83 @@ function validityLabel(c: Customer): string {
 
 .cell-validity {
   white-space: nowrap;
+}
+
+.cell-fee {
+  white-space: nowrap;
+  font-weight: 700;
+  color: var(--login-secondary, #0c1c40);
+}
+
+.th-num .th-sort {
+  text-align: right;
+}
+
+.th-sort {
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.th-sort:hover {
+  color: var(--login-secondary, #0c1c40);
+}
+
+.status-chips {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.chip {
+  padding: 0.35rem 0.85rem;
+  background: #f7f8fb;
+  border: 1px solid #d4dae6;
+  border-radius: 2rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.chip:hover {
+  border-color: var(--login-primary, #ed2044);
+}
+
+.chip.is-active {
+  background: var(--login-primary, #ed2044);
+  border-color: var(--login-primary, #ed2044);
+  color: #fff;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.badge--existing {
+  background: #e3f6ec;
+  color: #1c7a45;
+}
+
+.badge--potential {
+  background: #e7eefc;
+  color: #2b59c3;
 }
 
 .col-actions {

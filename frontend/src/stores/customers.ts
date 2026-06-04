@@ -54,9 +54,59 @@ export interface ContactFields {
   notes: string | null
 }
 
+export type CustomerStatus = 'existing' | 'potential'
+
+/** One recurring monthly fee item, valid for a period. */
+export interface FeeItem {
+  id: number
+  /** Optional catalogue product reference; name/amount stay editable. */
+  productId: number | null
+  name: string
+  /** Headcount-based: amount = unitAmount × quantity. */
+  isPerHead: boolean
+  unitAmount: string | null
+  quantity: number | null
+  amount: string
+  currency: string
+  validFrom: string | null
+  validUntil: string | null
+  notes: string | null
+  createdAt: string
+}
+
+export interface FeeItemFields {
+  productId: number | null
+  name: string
+  isPerHead: boolean
+  unitAmount: string | null
+  quantity: number | null
+  amount: string | null
+  currency: string
+  validFrom: string | null
+  validUntil: string | null
+  notes: string | null
+}
+
+/** Payload of the price/headcount change action. */
+export interface FeeRaiseFields {
+  amount?: string
+  unitAmount?: string
+  quantity?: number
+  effectiveFrom: string
+}
+
+/** Per-currency sum of the fee items active today. */
+export interface FeeTotal {
+  currency: string
+  amount: string
+}
+
 export interface Customer {
   id: number
   name: string
+  status: CustomerStatus
+  monthlyFeeTotals: FeeTotal[]
+  feeItems: FeeItem[]
   address: Address
   website: string | null
   billingAddress: Address
@@ -74,6 +124,7 @@ export interface Customer {
 
 export interface CustomerFields {
   name: string
+  status: CustomerStatus
   address: Address
   website: string | null
   billingAddress: Address
@@ -94,6 +145,7 @@ export const emptyAddress = (): Address => ({
 
 export const emptyCustomerFields = (): CustomerFields => ({
   name: '',
+  status: 'potential',
   address: emptyAddress(),
   website: null,
   billingAddress: emptyAddress(),
@@ -146,6 +198,7 @@ export function toCustomerPayload(f: CustomerFields, copyBilling: boolean): Cust
   const norm = (v: string | null): string | null => (null === v || '' === v.trim() ? null : v.trim())
   return {
     name: f.name.trim(),
+    status: f.status,
     address: { ...f.address },
     website: norm(f.website),
     billingAddress: copyBilling ? { ...f.address } : { ...f.billingAddress },
@@ -345,6 +398,81 @@ export const useCustomersStore = defineStore('customers', () => {
     }
   }
 
+  // ── Quick status flip (overview header) ──────────────────────────
+  async function setStatus(id: number, status: CustomerStatus): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${id}/status`, {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ status }),
+      })
+      const data = (await response.json().catch(() => null)) as Customer | { error?: string } | null
+      if (!response.ok) {
+        const message = data && 'error' in data && data.error ? data.error : 'A mentés nem sikerült.'
+        return { ok: false, error: message }
+      }
+      if (data && 'id' in data) {
+        customers.value = customers.value.map((c) => (c.id === id ? data : c))
+      }
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  // ── Monthly fee items ─────────────────────────────────────────────
+  // Every fee mutation returns { feeItems, monthlyFeeTotals } — patch both
+  // onto the cached customer so the list column updates too.
+  async function mutateFee(
+    customerId: number,
+    path: string,
+    method: 'POST' | 'PUT' | 'DELETE',
+    body?: unknown,
+    fallback = 'A művelet nem sikerült.',
+  ): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${customerId}/fees${path}`, {
+        method,
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: undefined === body ? undefined : JSON.stringify(body),
+      })
+      const data = (await response.json().catch(() => null)) as
+        | { feeItems: FeeItem[]; monthlyFeeTotals: FeeTotal[] }
+        | { error?: string }
+        | null
+      if (!response.ok) {
+        const message = data && 'error' in data && data.error ? data.error : fallback
+        return { ok: false, error: message }
+      }
+      if (data && 'feeItems' in data) {
+        customers.value = customers.value.map((c) =>
+          c.id === customerId ? { ...c, feeItems: data.feeItems, monthlyFeeTotals: data.monthlyFeeTotals } : c,
+        )
+      }
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  function createFee(customerId: number, fields: FeeItemFields): Promise<MutationResult> {
+    return mutateFee(customerId, '', 'POST', fields, 'A tétel létrehozása nem sikerült.')
+  }
+
+  function updateFee(customerId: number, feeId: number, fields: FeeItemFields): Promise<MutationResult> {
+    return mutateFee(customerId, `/${feeId}`, 'PUT', fields, 'A mentés nem sikerült.')
+  }
+
+  function deleteFee(customerId: number, feeId: number): Promise<MutationResult> {
+    return mutateFee(customerId, `/${feeId}`, 'DELETE', undefined, 'A törlés nem sikerült.')
+  }
+
+  function raiseFee(customerId: number, feeId: number, fields: FeeRaiseFields): Promise<MutationResult> {
+    return mutateFee(customerId, `/${feeId}/raise`, 'POST', fields, 'Az áremelés rögzítése nem sikerült.')
+  }
+
   // ── Contacts ─────────────────────────────────────────────────────
   function replaceContacts(customerId: number, mapper: (list: Contact[]) => Contact[]): void {
     customers.value = customers.value.map((c) =>
@@ -443,6 +571,11 @@ export const useCustomersStore = defineStore('customers', () => {
     createCustomer,
     updateCustomer,
     deleteCustomer,
+    setStatus,
+    createFee,
+    updateFee,
+    deleteFee,
+    raiseFee,
     createSalesAssignment,
     updateSalesAssignment,
     deleteSalesAssignment,

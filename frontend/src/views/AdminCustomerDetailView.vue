@@ -6,16 +6,18 @@ import {
   useCustomersStore,
   currentSalesAssignments,
   type Customer,
+  type CustomerStatus,
   type Address,
   type SalesAssignment,
 } from '@/stores/customers'
 import CustomerEditor from '@/components/CustomerEditor.vue'
+import CustomerFeesPanel from '@/components/CustomerFeesPanel.vue'
 import CustomerContactsPanel from '@/components/CustomerContactsPanel.vue'
 import CustomerOpportunitiesPanel from '@/components/CustomerOpportunitiesPanel.vue'
 import ActivityList from '@/components/ActivityList.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const store = useCustomersStore()
 
@@ -27,11 +29,12 @@ const loading = ref(true)
 const notFound = ref(false)
 const editing = ref(false)
 
-type TabKey = 'overview' | 'contacts' | 'opportunities' | 'timeline'
+type TabKey = 'overview' | 'fees' | 'contacts' | 'opportunities' | 'timeline'
 const activeTab = ref<TabKey>('overview')
 
 const tabs: { key: TabKey; label: string; ready: boolean }[] = [
   { key: 'overview', label: 'tabOverview', ready: true },
+  { key: 'fees', label: 'tabFees', ready: true },
   { key: 'contacts', label: 'tabContacts', ready: true },
   { key: 'opportunities', label: 'tabOpportunities', ready: true },
   { key: 'timeline', label: 'tabTimeline', ready: true },
@@ -63,6 +66,35 @@ function formatDate(d: string | null): string {
 function validityLabel(c: Customer): string {
   if (null === c.validFrom && null === c.validUntil) return t('adminCustomers.validityOpen')
   return `${formatDate(c.validFrom)} → ${formatDate(c.validUntil)}`
+}
+
+function feeLines(c: Customer): string[] {
+  if (0 === c.monthlyFeeTotals.length) return ['—']
+  return c.monthlyFeeTotals.map((tt) =>
+    new Intl.NumberFormat(locale.value, {
+      style: 'currency',
+      currency: tt.currency,
+      maximumFractionDigits: 0,
+    }).format(Number(tt.amount)),
+  )
+}
+
+const currentSalesNames = computed(() => {
+  if (null === customer.value) return '—'
+  const active = currentSalesAssignments(customer.value.salesAssignments)
+  if (0 === active.length) return t('adminCustomers.salesUnassigned')
+  return active.map((a) => a.userName || a.userEmail).join(', ')
+})
+
+// Quick status flip from the overview header — saves immediately.
+const statusSaving = ref(false)
+
+async function onSetStatus(status: CustomerStatus): Promise<void> {
+  if (null === customer.value || customer.value.status === status || statusSaving.value) return
+  statusSaving.value = true
+  const result = await store.setStatus(customer.value.id, status)
+  statusSaving.value = false
+  if (!result.ok) window.alert(result.error ?? t('admin.saveFailed'))
 }
 
 function addressLine(a: Address): string {
@@ -115,7 +147,50 @@ function salesPeriod(a: SalesAssignment): string {
         </div>
 
         <!-- ── Overview ─────────────────────────────────────────────── -->
-        <div v-if="activeTab === 'overview'" class="cust-panel">
+        <template v-if="activeTab === 'overview'">
+        <!-- Summary cards: status (instant save), fee, sales, validity -->
+        <div v-if="!editing" class="ov-cards">
+          <div class="ov-card">
+            <span class="ov-label">{{ t('adminCustomers.status') }}</span>
+            <div class="ov-status-switch" :class="{ 'is-saving': statusSaving }">
+              <button
+                type="button"
+                class="ov-status-btn ov-status-btn--existing"
+                :class="{ 'is-active': customer.status === 'existing' }"
+                :disabled="statusSaving"
+                @click="onSetStatus('existing')"
+              >
+                {{ t('adminCustomers.status_existing') }}
+              </button>
+              <button
+                type="button"
+                class="ov-status-btn ov-status-btn--potential"
+                :class="{ 'is-active': customer.status === 'potential' }"
+                :disabled="statusSaving"
+                @click="onSetStatus('potential')"
+              >
+                {{ t('adminCustomers.status_potential') }}
+              </button>
+            </div>
+          </div>
+          <button type="button" class="ov-card ov-card--link" @click="activeTab = 'fees'">
+            <span class="ov-label">{{ t('adminCustomers.monthlyFee') }}</span>
+            <span class="ov-value">
+              <span v-for="(line, i) in feeLines(customer)" :key="i" class="ov-value-line">{{ line }}</span>
+            </span>
+            <span class="ov-sub">{{ t('adminCustomers.feeCardHint') }} →</span>
+          </button>
+          <div class="ov-card">
+            <span class="ov-label">{{ t('adminCustomers.colSales') }}</span>
+            <span class="ov-value ov-value--text">{{ currentSalesNames }}</span>
+          </div>
+          <div class="ov-card">
+            <span class="ov-label">{{ t('adminCustomers.colValidity') }}</span>
+            <span class="ov-value ov-value--text">{{ validityLabel(customer) }}</span>
+          </div>
+        </div>
+
+        <div class="cust-panel">
           <div v-if="!editing" class="overview-head">
             <button type="button" class="btn-edit" @click="editing = true">
               <IconEdit />
@@ -184,6 +259,12 @@ function salesPeriod(a: SalesAssignment): string {
             </ul>
           </fieldset>
           </template>
+        </div>
+        </template>
+
+        <!-- ── Monthly fees ─────────────────────────────────────────── -->
+        <div v-else-if="activeTab === 'fees'" class="cust-panel">
+          <CustomerFeesPanel :customer="customer" />
         </div>
 
         <!-- ── Contacts ─────────────────────────────────────────────── -->
@@ -410,6 +491,106 @@ function salesPeriod(a: SalesAssignment): string {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   vertical-align: middle;
+}
+
+/* ── Overview summary cards ─────────────────────────────────────────── */
+.ov-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.ov-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 1.15rem 1.35rem;
+  background: #fff;
+  border: none;
+  border-radius: 1.1rem;
+  box-shadow: 0 12px 32px rgba(12, 28, 64, 0.08);
+  text-align: left;
+  font-family: inherit;
+}
+
+.ov-card--link {
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.ov-card--link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px rgba(12, 28, 64, 0.12);
+}
+
+.ov-label {
+  color: #8b94a6;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ov-value {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.8rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.ov-value--text {
+  font-size: 1.02rem;
+  line-height: 1.4;
+}
+
+.ov-sub {
+  color: var(--login-primary, #ed2044);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.ov-status-switch {
+  display: inline-flex;
+  padding: 0.2rem;
+  background: #f0f2f7;
+  border-radius: 2rem;
+  gap: 0.2rem;
+}
+
+.ov-status-switch.is-saving {
+  opacity: 0.6;
+}
+
+.ov-status-btn {
+  padding: 0.4rem 0.95rem;
+  background: transparent;
+  border: none;
+  border-radius: 2rem;
+  color: #545f71;
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ov-status-btn--existing.is-active {
+  background: #1c7a45;
+  color: #fff;
+}
+
+.ov-status-btn--potential.is-active {
+  background: #2b59c3;
+  color: #fff;
+}
+
+.ov-status-btn:disabled {
+  cursor: progress;
 }
 
 .sales-period {

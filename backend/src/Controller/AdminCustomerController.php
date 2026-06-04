@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Address;
 use App\Entity\Contact;
 use App\Entity\Customer;
+use App\Entity\CustomerFeeItem;
 use App\Entity\CustomerSalesAssignment;
 use App\Repository\CustomerRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -92,6 +93,30 @@ final class AdminCustomerController extends AbstractController
         return $this->json($this->serialize($customer));
     }
 
+    /**
+     * Quick status flip from the overview header — no full payload needed.
+     * Body: { "status": "existing" | "potential" }.
+     */
+    #[Route('/{id<\d+>}/status', name: 'set_status', methods: ['PUT'])]
+    public function setStatus(Customer $customer, Request $request): JsonResponse
+    {
+        if (null !== $customer->getDeletedAt()) {
+            return $this->json(['error' => 'Az ügyfél nem található.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $payload = $this->decode($request);
+        $status = \is_array($payload) ? (string) ($payload['status'] ?? '') : '';
+        if (!\in_array($status, Customer::STATUSES, true)) {
+            return $this->json(['error' => 'Érvénytelen státusz.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $customer->setStatus($status);
+        $customer->touch();
+        $this->entityManager->flush();
+
+        return $this->json($this->serialize($customer));
+    }
+
     #[Route('/{id<\d+>}', name: 'delete', methods: ['DELETE'])]
     public function delete(Customer $customer): JsonResponse
     {
@@ -121,6 +146,10 @@ final class AdminCustomerController extends AbstractController
             ->setEmail($this->nullableString($payload, 'email'))
             ->setPhone($this->nullableString($payload, 'phone'))
             ->setNotes($this->nullableString($payload, 'notes'));
+
+        if (\array_key_exists('status', $payload)) {
+            $customer->setStatus((string) $payload['status']);
+        }
 
         $this->applyAddress($customer->getAddress(), $payload['address'] ?? null);
         $this->applyAddress($customer->getBillingAddress(), $payload['billingAddress'] ?? null);
@@ -208,9 +237,20 @@ final class AdminCustomerController extends AbstractController
      */
     private function serialize(Customer $c): array
     {
+        $feeTotals = [];
+        foreach ($c->monthlyFeeTotals(new \DateTimeImmutable('today')) as $currency => $amount) {
+            $feeTotals[] = ['currency' => $currency, 'amount' => $amount];
+        }
+
         return [
             'id' => $c->getId(),
             'name' => $c->getName(),
+            'status' => $c->getStatus(),
+            'monthlyFeeTotals' => $feeTotals,
+            'feeItems' => array_map(
+                fn (CustomerFeeItem $item): array => $this->serializeFeeItem($item),
+                $c->getFeeItems()->toArray(),
+            ),
             'address' => $c->getAddress()->toArray(),
             'website' => $c->getWebsite(),
             'billingAddress' => $c->getBillingAddress()->toArray(),
@@ -249,6 +289,27 @@ final class AdminCustomerController extends AbstractController
             'validUntil' => $a->getValidUntil()?->format('Y-m-d'),
             'notes' => $a->getNotes(),
             'createdAt' => $a->getCreatedAt()->format(\DateTimeInterface::ATOM),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeFeeItem(CustomerFeeItem $item): array
+    {
+        return [
+            'id' => $item->getId(),
+            'productId' => $item->getProduct()?->getId(),
+            'name' => $item->getName(),
+            'isPerHead' => $item->isPerHead(),
+            'unitAmount' => $item->getUnitAmount(),
+            'quantity' => $item->getQuantity(),
+            'amount' => $item->getAmount(),
+            'currency' => $item->getCurrency(),
+            'validFrom' => $item->getValidFrom()?->format('Y-m-d'),
+            'validUntil' => $item->getValidUntil()?->format('Y-m-d'),
+            'notes' => $item->getNotes(),
+            'createdAt' => $item->getCreatedAt()->format(\DateTimeInterface::ATOM),
         ];
     }
 

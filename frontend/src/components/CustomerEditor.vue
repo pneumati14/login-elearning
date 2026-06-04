@@ -44,6 +44,7 @@ function isEmptyAddress(a: Address): boolean {
 
 function copyInto(target: CustomerFields, source: Customer) {
   target.name = source.name
+  target.status = source.status
   target.address = { ...source.address }
   target.website = source.website
   target.billingAddress = { ...source.billingAddress }
@@ -184,6 +185,13 @@ function formatAssignmentPeriod(a: SalesAssignment): string {
       <label class="field field--wide">
         <span>{{ t('adminCustomers.name') }} *</span>
         <input v-model="editForm.name" type="text" required maxlength="255" />
+      </label>
+      <label class="field">
+        <span>{{ t('adminCustomers.status') }}</span>
+        <select v-model="editForm.status">
+          <option value="potential">{{ t('adminCustomers.status_potential') }}</option>
+          <option value="existing">{{ t('adminCustomers.status_existing') }}</option>
+        </select>
       </label>
       <label class="field">
         <span>{{ t('adminCustomers.website') }}</span>

@@ -17,6 +17,14 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'idx_customer_deleted_at', columns: ['deleted_at'])]
 class Customer
 {
+    public const STATUS_EXISTING = 'existing';
+    public const STATUS_POTENTIAL = 'potential';
+
+    public const STATUSES = [self::STATUS_EXISTING, self::STATUS_POTENTIAL];
+
+    public const CURRENCIES = ['HUF', 'EUR', 'USD'];
+    public const DEFAULT_CURRENCY = 'HUF';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -24,6 +32,10 @@ class Customer
 
     #[ORM\Column(length: 255)]
     private string $name = '';
+
+    /** One of STATUS_*: an existing (paying) or a potential customer. */
+    #[ORM\Column(length: 16, options: ['default' => self::STATUS_POTENTIAL])]
+    private string $status = self::STATUS_POTENTIAL;
 
     #[ORM\Embedded(class: Address::class, columnPrefix: 'address_')]
     private Address $address;
@@ -62,6 +74,18 @@ class Customer
      */
     #[ORM\OneToMany(mappedBy: 'customer', targetEntity: Contact::class, cascade: ['remove'], orphanRemoval: true)]
     private Collection $contacts;
+
+    /**
+     * Recurring monthly fee items with validity periods. The current
+     * monthly fee is the sum of the items active today; price changes
+     * keep history (old item closed, new one opened). Ordered oldest
+     * first by start date.
+     *
+     * @var Collection<int, CustomerFeeItem>
+     */
+    #[ORM\OneToMany(mappedBy: 'customer', targetEntity: CustomerFeeItem::class, cascade: ['remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['validFrom' => 'ASC', 'id' => 'ASC'])]
+    private Collection $feeItems;
 
     /**
      * Sales opportunities (deals) for this customer. Removed with the customer.
@@ -104,6 +128,7 @@ class Customer
         $this->billingAddress = new Address();
         $this->salesAssignments = new ArrayCollection();
         $this->contacts = new ArrayCollection();
+        $this->feeItems = new ArrayCollection();
         $this->opportunities = new ArrayCollection();
         $this->activities = new ArrayCollection();
     }
@@ -121,6 +146,18 @@ class Customer
     public function setName(string $name): static
     {
         $this->name = $name;
+
+        return $this;
+    }
+
+    public function getStatus(): string
+    {
+        return $this->status;
+    }
+
+    public function setStatus(string $status): static
+    {
+        $this->status = \in_array($status, self::STATUSES, true) ? $status : self::STATUS_POTENTIAL;
 
         return $this;
     }
@@ -209,6 +246,34 @@ class Customer
     public function getContacts(): Collection
     {
         return $this->contacts;
+    }
+
+    /**
+     * @return Collection<int, CustomerFeeItem>
+     */
+    public function getFeeItems(): Collection
+    {
+        return $this->feeItems;
+    }
+
+    /**
+     * Per-currency sum of the fee items active on the given date,
+     * e.g. ['HUF' => '125000.00']. Currencies are never converted.
+     *
+     * @return array<string, string>
+     */
+    public function monthlyFeeTotals(\DateTimeImmutable $date): array
+    {
+        $totals = [];
+        foreach ($this->feeItems as $item) {
+            if (!$item->isActiveOn($date)) {
+                continue;
+            }
+            $totals[$item->getCurrency()] = ($totals[$item->getCurrency()] ?? 0.0) + (float) $item->getAmount();
+        }
+        ksort($totals);
+
+        return array_map(fn (float $sum): string => number_format($sum, 2, '.', ''), $totals);
     }
 
     /**
