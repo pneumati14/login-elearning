@@ -74,6 +74,7 @@ const panels = computed<Record<string, Panel>>(() => {
       { label: t('nav.adminTasks'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/tasks' },
       { label: t('nav.adminReports'), icon: 'download-research.svg', type: 'route', to: '/admin/reports' },
       { label: t('nav.adminFulfillment'), icon: 'application.svg', type: 'route', to: '/admin/fulfillment' },
+      { label: t('nav.adminBilling'), icon: 'productivity.svg', type: 'route', to: '/admin/billing' },
     ]
     if (auth.canManageCatalog) {
       crmItems.push(

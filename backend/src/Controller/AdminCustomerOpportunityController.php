@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Entity\BillingItem;
 use App\Entity\Contact;
 use App\Entity\Customer;
 use App\Entity\Opportunity;
@@ -12,6 +13,7 @@ use App\Entity\OpportunityStageChange;
 use App\Entity\OpportunityType;
 use App\Entity\Product;
 use App\Entity\User;
+use App\Repository\BillingItemRepository;
 use App\Repository\OpportunityRepository;
 use App\Service\MediaStorage;
 use Doctrine\ORM\EntityManagerInterface;
@@ -40,6 +42,7 @@ final class AdminCustomerOpportunityController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly OpportunityRepository $opportunities,
+        private readonly BillingItemRepository $billingItems,
         private readonly MediaStorage $storage,
     ) {
     }
@@ -100,6 +103,10 @@ final class AdminCustomerOpportunityController extends AbstractController
         $opportunity->addStageChange($this->makeChange(null, $stage->getName()));
 
         $this->entityManager->persist($opportunity);
+        // A deal created straight into a won stage is billed right away.
+        if (OpportunityStage::OUTCOME_WON === $stage->getOutcome()) {
+            $this->snapshotBillingItems($opportunity);
+        }
         $this->entityManager->flush();
 
         return $this->json($this->serialize($opportunity), JsonResponse::HTTP_CREATED);
@@ -158,6 +165,11 @@ final class AdminCustomerOpportunityController extends AbstractController
             $opportunity->addStageChange($this->makeChange($current->getName(), $stage->getName()));
             $opportunity->setStage($stage);
             $opportunity->touch();
+            // Winning the deal puts its lines on the billing table.
+            if (OpportunityStage::OUTCOME_WON === $stage->getOutcome()
+                && OpportunityStage::OUTCOME_WON !== $current->getOutcome()) {
+                $this->snapshotBillingItems($opportunity);
+            }
             $this->entityManager->flush();
         }
 
@@ -390,6 +402,46 @@ final class AdminCustomerOpportunityController extends AbstractController
         }
 
         return $type->getStages()->first() ?: null;
+    }
+
+    /**
+     * Snapshot the deal's quote lines as billing items (a lineless deal
+     * becomes one item from its title and value). Skipped when the deal
+     * already produced billing items — a reopened-then-rewon deal must
+     * not duplicate its rows. The caller flushes.
+     */
+    private function snapshotBillingItems(Opportunity $opportunity): void
+    {
+        if (null !== $opportunity->getId() && $this->billingItems->existsForOpportunity($opportunity)) {
+            return;
+        }
+
+        $wonAt = $opportunity->getClosedAt() ?? new \DateTimeImmutable('today');
+        $lines = $opportunity->getLineItems();
+        if ($lines->isEmpty()) {
+            $item = (new BillingItem())
+                ->setCustomer($opportunity->getCustomer())
+                ->setOpportunity($opportunity)
+                ->setName($opportunity->getTitle())
+                ->setUnitPrice($opportunity->getValue() ?? '0')
+                ->setCurrency($opportunity->getCurrency())
+                ->setWonAt($wonAt);
+            $this->entityManager->persist($item);
+
+            return;
+        }
+
+        foreach ($lines as $line) {
+            $item = (new BillingItem())
+                ->setCustomer($opportunity->getCustomer())
+                ->setOpportunity($opportunity)
+                ->setName($line->getProductName())
+                ->setQuantity($line->getQuantity())
+                ->setUnitPrice($line->getUnitPrice())
+                ->setCurrency($opportunity->getCurrency())
+                ->setWonAt($wonAt);
+            $this->entityManager->persist($item);
+        }
     }
 
     private function makeChange(?string $from, string $to): OpportunityStageChange

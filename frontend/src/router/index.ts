@@ -114,6 +114,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresCrm: true },
     },
     {
+      path: '/admin/billing',
+      name: 'admin-billing',
+      component: () => import('../views/AdminBillingView.vue'),
+      meta: { requiresAuth: true, requiresCrm: true },
+    },
+    {
       path: '/admin/fulfillment-types',
       name: 'admin-fulfillment-types',
       component: () => import('../views/AdminFulfillmentTypesView.vue'),
