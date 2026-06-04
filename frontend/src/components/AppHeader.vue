@@ -73,11 +73,14 @@ const panels = computed<Record<string, Panel>>(() => {
       { label: t('nav.adminCustomers'), icon: 'team-career.svg', type: 'route', to: '/admin/customers' },
       { label: t('nav.adminTasks'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/tasks' },
       { label: t('nav.adminReports'), icon: 'download-research.svg', type: 'route', to: '/admin/reports' },
+      { label: t('nav.adminFulfillment'), icon: 'application.svg', type: 'route', to: '/admin/fulfillment' },
     ]
     if (auth.canManageCatalog) {
       crmItems.push(
         { label: t('nav.adminOpportunityTypes'), icon: 'competency.svg', type: 'route', to: '/admin/opportunity-types' },
         { label: t('nav.adminProducts'), icon: 'publications.svg', type: 'route', to: '/admin/products' },
+        { label: t('nav.adminSuppliers'), icon: 'connect.svg', type: 'route', to: '/admin/suppliers' },
+        { label: t('nav.adminFulfillmentTypes'), icon: 'icon-app.svg', type: 'route', to: '/admin/fulfillment-types' },
       )
     }
     result['panel-crm'] = { parent: 'panel-1', items: crmItems }

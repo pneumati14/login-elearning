@@ -108,9 +108,27 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresCrm: true },
     },
     {
+      path: '/admin/fulfillment',
+      name: 'admin-fulfillment',
+      component: () => import('../views/AdminFulfillmentView.vue'),
+      meta: { requiresAuth: true, requiresCrm: true },
+    },
+    {
+      path: '/admin/fulfillment-types',
+      name: 'admin-fulfillment-types',
+      component: () => import('../views/AdminFulfillmentTypesView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
       path: '/admin/products',
       name: 'admin-products',
       component: () => import('../views/AdminProductsView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/suppliers',
+      name: 'admin-suppliers',
+      component: () => import('../views/AdminSuppliersView.vue'),
       meta: { requiresAuth: true, requiresAdmin: true },
     },
     {

@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Address;
 use App\Entity\Contact;
 use App\Entity\Customer;
+use App\Entity\CustomerCard;
 use App\Entity\CustomerFeeItem;
 use App\Entity\CustomerSalesAssignment;
 use App\Repository\CustomerRepository;
@@ -250,6 +251,10 @@ final class AdminCustomerController extends AbstractController
             'feeItems' => array_map(
                 fn (CustomerFeeItem $item): array => $this->serializeFeeItem($item),
                 $c->getFeeItems()->toArray(),
+            ),
+            'cards' => array_map(
+                fn (CustomerCard $card): array => AdminCustomerCardController::serializeCard($card),
+                $c->getCards()->toArray(),
             ),
             'address' => $c->getAddress()->toArray(),
             'website' => $c->getWebsite(),

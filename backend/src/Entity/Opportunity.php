@@ -70,6 +70,20 @@ class Opportunity
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Contact $contact = null;
 
+    /**
+     * Fulfillment category once the deal is won (hardware / software /
+     * development…). Null until the won deal is categorised on the
+     * fulfillment board.
+     */
+    #[ORM\ManyToOne(targetEntity: FulfillmentType::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?FulfillmentType $fulfillmentType = null;
+
+    /** Current delivery stage; must belong to {@see $fulfillmentType}. */
+    #[ORM\ManyToOne(targetEntity: FulfillmentStage::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?FulfillmentStage $fulfillmentStage = null;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
@@ -238,6 +252,30 @@ class Opportunity
     public function setContact(?Contact $contact): static
     {
         $this->contact = $contact;
+
+        return $this;
+    }
+
+    public function getFulfillmentType(): ?FulfillmentType
+    {
+        return $this->fulfillmentType;
+    }
+
+    public function setFulfillmentType(?FulfillmentType $type): static
+    {
+        $this->fulfillmentType = $type;
+
+        return $this;
+    }
+
+    public function getFulfillmentStage(): ?FulfillmentStage
+    {
+        return $this->fulfillmentStage;
+    }
+
+    public function setFulfillmentStage(?FulfillmentStage $stage): static
+    {
+        $this->fulfillmentStage = $stage;
 
         return $this;
     }

@@ -101,12 +101,76 @@ export interface FeeTotal {
   amount: string
 }
 
+/** Workflow: quote → ordered → proforma → proforma paid → procurement → shipping → paid. */
+export type CardOrderStatus =
+  | 'quote'
+  | 'ordered'
+  | 'proforma'
+  | 'proforma_paid'
+  | 'procurement'
+  | 'shipping'
+  | 'paid'
+
+export const CARD_ORDER_STATUSES: CardOrderStatus[] = [
+  'quote',
+  'ordered',
+  'proforma',
+  'proforma_paid',
+  'procurement',
+  'shipping',
+  'paid',
+]
+
+/** One order placed for a customer card (catalogue product + quantity). */
+export interface CardOrder {
+  id: number
+  productId: number | null
+  productName: string
+  quantity: number
+  /** Per-piece prices; totals and margin are computed client-side. */
+  unitPurchasePrice: string | null
+  unitSalePrice: string | null
+  currency: string
+  orderedAt: string
+  status: CardOrderStatus
+  createdAt: string
+}
+
+export interface CardOrderFields {
+  productId: number | null
+  quantity: number | null
+  unitPurchasePrice: string | null
+  unitSalePrice: string | null
+  currency: string
+  orderedAt: string
+  status: CardOrderStatus
+}
+
+/** A card type used by the customer, with its order history. */
+export interface CustomerCard {
+  id: number
+  type: string
+  uniqueness: string | null
+  supplierId: number | null
+  supplierName: string | null
+  orders: CardOrder[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CustomerCardFields {
+  type: string
+  uniqueness: string | null
+  supplierId: number | null
+}
+
 export interface Customer {
   id: number
   name: string
   status: CustomerStatus
   monthlyFeeTotals: FeeTotal[]
   feeItems: FeeItem[]
+  cards: CustomerCard[]
   address: Address
   website: string | null
   billingAddress: Address
@@ -473,6 +537,78 @@ export const useCustomersStore = defineStore('customers', () => {
     return mutateFee(customerId, `/${feeId}/raise`, 'POST', fields, 'Az áremelés rögzítése nem sikerült.')
   }
 
+  // ── Cards & their orders ──────────────────────────────────────────
+  // Every card mutation returns { cards } — patch it onto the customer.
+  async function mutateCard(
+    customerId: number,
+    path: string,
+    method: 'POST' | 'PUT' | 'DELETE',
+    body?: unknown,
+    fallback = 'A művelet nem sikerült.',
+  ): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${customerId}/cards${path}`, {
+        method,
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: undefined === body ? undefined : JSON.stringify(body),
+      })
+      const data = (await response.json().catch(() => null)) as
+        | { cards: CustomerCard[] }
+        | { error?: string }
+        | null
+      if (!response.ok) {
+        const message = data && 'error' in data && data.error ? data.error : fallback
+        return { ok: false, error: message }
+      }
+      if (data && 'cards' in data) {
+        customers.value = customers.value.map((c) => (c.id === customerId ? { ...c, cards: data.cards } : c))
+      }
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  function createCard(customerId: number, fields: CustomerCardFields): Promise<MutationResult> {
+    return mutateCard(customerId, '', 'POST', fields, 'A kártya létrehozása nem sikerült.')
+  }
+
+  function updateCard(customerId: number, cardId: number, fields: CustomerCardFields): Promise<MutationResult> {
+    return mutateCard(customerId, `/${cardId}`, 'PUT', fields, 'A mentés nem sikerült.')
+  }
+
+  function deleteCard(customerId: number, cardId: number): Promise<MutationResult> {
+    return mutateCard(customerId, `/${cardId}`, 'DELETE', undefined, 'A törlés nem sikerült.')
+  }
+
+  function createCardOrder(customerId: number, cardId: number, fields: CardOrderFields): Promise<MutationResult> {
+    return mutateCard(customerId, `/${cardId}/orders`, 'POST', fields, 'A megrendelés rögzítése nem sikerült.')
+  }
+
+  function updateCardOrder(
+    customerId: number,
+    cardId: number,
+    orderId: number,
+    fields: CardOrderFields,
+  ): Promise<MutationResult> {
+    return mutateCard(customerId, `/${cardId}/orders/${orderId}`, 'PUT', fields, 'A mentés nem sikerült.')
+  }
+
+  function deleteCardOrder(customerId: number, cardId: number, orderId: number): Promise<MutationResult> {
+    return mutateCard(customerId, `/${cardId}/orders/${orderId}`, 'DELETE', undefined, 'A törlés nem sikerült.')
+  }
+
+  /** The kanban drag-and-drop: only the status moves. */
+  function moveCardOrderStatus(
+    customerId: number,
+    cardId: number,
+    orderId: number,
+    status: CardOrderStatus,
+  ): Promise<MutationResult> {
+    return mutateCard(customerId, `/${cardId}/orders/${orderId}/status`, 'PUT', { status }, 'Az áthelyezés nem sikerült.')
+  }
+
   // ── Contacts ─────────────────────────────────────────────────────
   function replaceContacts(customerId: number, mapper: (list: Contact[]) => Contact[]): void {
     customers.value = customers.value.map((c) =>
@@ -576,6 +712,13 @@ export const useCustomersStore = defineStore('customers', () => {
     updateFee,
     deleteFee,
     raiseFee,
+    createCard,
+    updateCard,
+    deleteCard,
+    createCardOrder,
+    updateCardOrder,
+    deleteCardOrder,
+    moveCardOrderStatus,
     createSalesAssignment,
     updateSalesAssignment,
     deleteSalesAssignment,

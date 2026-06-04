@@ -14,6 +14,7 @@ import { useOpportunitiesStore } from '@/stores/opportunities'
 import { useActivitiesStore, formatDateTime, taskUrgency, type Urgency } from '@/stores/activities'
 import CustomerEditor from '@/components/CustomerEditor.vue'
 import CustomerFeesPanel from '@/components/CustomerFeesPanel.vue'
+import CustomerCardsPanel from '@/components/CustomerCardsPanel.vue'
 import CustomerContactsPanel from '@/components/CustomerContactsPanel.vue'
 import CustomerOpportunitiesPanel from '@/components/CustomerOpportunitiesPanel.vue'
 import ActivityList from '@/components/ActivityList.vue'
@@ -31,12 +32,13 @@ const loading = ref(true)
 const notFound = ref(false)
 const editing = ref(false)
 
-type TabKey = 'overview' | 'fees' | 'contacts' | 'opportunities' | 'timeline'
+type TabKey = 'overview' | 'fees' | 'cards' | 'contacts' | 'opportunities' | 'timeline'
 const activeTab = ref<TabKey>('overview')
 
 const tabs: { key: TabKey; label: string; ready: boolean }[] = [
   { key: 'overview', label: 'tabOverview', ready: true },
   { key: 'fees', label: 'tabFees', ready: true },
+  { key: 'cards', label: 'tabCards', ready: true },
   { key: 'contacts', label: 'tabContacts', ready: true },
   { key: 'opportunities', label: 'tabOpportunities', ready: true },
   { key: 'timeline', label: 'tabTimeline', ready: true },
@@ -390,6 +392,11 @@ function salesPeriod(a: SalesAssignment): string {
         <!-- ── Monthly fees ─────────────────────────────────────────── -->
         <div v-else-if="activeTab === 'fees'" class="cust-panel">
           <CustomerFeesPanel :customer="customer" />
+        </div>
+
+        <!-- ── Cards ────────────────────────────────────────────────── -->
+        <div v-else-if="activeTab === 'cards'" class="cust-panel">
+          <CustomerCardsPanel :customer="customer" />
         </div>
 
         <!-- ── Contacts ─────────────────────────────────────────────── -->
