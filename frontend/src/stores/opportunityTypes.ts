@@ -11,6 +11,8 @@ export interface OpportunityStage {
   name: string
   position: number
   outcome: StageOutcome
+  /** Win probability (%) for forecast weighting; fixed 100/0 on won/lost. */
+  probability: number
 }
 
 export interface OpportunityType {
@@ -199,14 +201,17 @@ export const useOpportunityTypesStore = defineStore('opportunityTypes', () => {
     }
   }
 
-  function createStage(typeId: number, fields: { name: string; outcome: StageOutcome }): Promise<MutationResult> {
+  function createStage(
+    typeId: number,
+    fields: { name: string; outcome: StageOutcome; probability?: number },
+  ): Promise<MutationResult> {
     return mutateStage(typeId, '', 'POST', fields, 'A fázis létrehozása nem sikerült.')
   }
 
   function updateStage(
     typeId: number,
     stageId: number,
-    fields: { name: string; outcome: StageOutcome },
+    fields: { name: string; outcome: StageOutcome; probability?: number },
   ): Promise<MutationResult> {
     return mutateStage(typeId, `/${stageId}`, 'PUT', fields, 'A mentés nem sikerült.')
   }

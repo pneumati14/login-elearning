@@ -102,6 +102,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresCrm: true },
     },
     {
+      path: '/admin/reports',
+      name: 'admin-reports',
+      component: () => import('../views/AdminReportsView.vue'),
+      meta: { requiresAuth: true, requiresCrm: true },
+    },
+    {
       path: '/admin/products',
       name: 'admin-products',
       component: () => import('../views/AdminProductsView.vue'),

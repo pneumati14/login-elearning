@@ -47,6 +47,7 @@ final class AdminOpportunityStageController extends AbstractController
         $stage->setType($type)
             ->setName($name)
             ->setOutcome((string) ($payload['outcome'] ?? OpportunityStage::OUTCOME_OPEN))
+            ->setProbability((int) ($payload['probability'] ?? 0))
             ->setPosition($this->nextStagePosition($type));
 
         $this->entityManager->persist($stage);
@@ -78,6 +79,10 @@ final class AdminOpportunityStageController extends AbstractController
         $stage->setName($name);
         if (\array_key_exists('outcome', $payload)) {
             $stage->setOutcome((string) $payload['outcome']);
+        }
+        // After the outcome: setProbability is a no-op on terminal stages.
+        if (\array_key_exists('probability', $payload)) {
+            $stage->setProbability((int) $payload['probability']);
         }
         $stage->getType()->touch();
         $this->entityManager->flush();
@@ -172,6 +177,7 @@ final class AdminOpportunityStageController extends AbstractController
                     'name' => $s->getName(),
                     'position' => $s->getPosition(),
                     'outcome' => $s->getOutcome(),
+                    'probability' => $s->getProbability(),
                 ],
                 $t->getStages()->toArray(),
             ),

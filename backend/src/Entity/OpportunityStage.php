@@ -41,6 +41,13 @@ class OpportunityStage
     #[ORM\Column(length: 16)]
     private string $outcome = self::OUTCOME_OPEN;
 
+    /**
+     * Win probability (%) used to weight deal values in the forecast.
+     * Fixed for terminal stages: won = 100, lost = 0.
+     */
+    #[ORM\Column(options: ['default' => 0])]
+    private int $probability = 0;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -90,6 +97,27 @@ class OpportunityStage
     public function setOutcome(string $outcome): static
     {
         $this->outcome = \in_array($outcome, self::OUTCOMES, true) ? $outcome : self::OUTCOME_OPEN;
+        // Terminal stages have a fixed probability.
+        if (self::OUTCOME_WON === $this->outcome) {
+            $this->probability = 100;
+        } elseif (self::OUTCOME_LOST === $this->outcome) {
+            $this->probability = 0;
+        }
+
+        return $this;
+    }
+
+    public function getProbability(): int
+    {
+        return $this->probability;
+    }
+
+    /** Clamped to 0–100; ignored on terminal stages (their value is fixed). */
+    public function setProbability(int $probability): static
+    {
+        if (self::OUTCOME_OPEN === $this->outcome) {
+            $this->probability = max(0, min(100, $probability));
+        }
 
         return $this;
     }

@@ -75,17 +75,30 @@ function validityLabel(tp: OpportunityType): string {
   return `${tp.validFrom ?? '—'} → ${tp.validUntil ?? '—'}`
 }
 
+// Probability (%) clamped to 0–100; terminal outcomes have a fixed value.
+function clampProbability(value: number, outcome: StageOutcome): number {
+  if ('won' === outcome) return 100
+  if ('lost' === outcome) return 0
+  return Math.max(0, Math.min(100, Math.round(value) || 0))
+}
+
 // ── Add stage ───────────────────────────────────────────────────────────
 const stageName = ref('')
 const stageOutcome = ref<StageOutcome>('open')
+const stageProbability = ref(50)
 
 async function onAddStage(tp: OpportunityType): Promise<void> {
   const name = stageName.value.trim()
   if ('' === name) return
-  const result = await store.createStage(tp.id, { name, outcome: stageOutcome.value })
+  const result = await store.createStage(tp.id, {
+    name,
+    outcome: stageOutcome.value,
+    probability: clampProbability(stageProbability.value, stageOutcome.value),
+  })
   if (result.ok) {
     stageName.value = ''
     stageOutcome.value = 'open'
+    stageProbability.value = 50
   } else {
     window.alert(result.error ?? t('admin.saveFailed'))
   }
@@ -95,17 +108,23 @@ async function onAddStage(tp: OpportunityType): Promise<void> {
 const editingStageId = ref<number | null>(null)
 const editStageName = ref('')
 const editStageOutcome = ref<StageOutcome>('open')
+const editStageProbability = ref(0)
 
 function startEditStage(s: OpportunityStage): void {
   editingStageId.value = s.id
   editStageName.value = s.name
   editStageOutcome.value = s.outcome
+  editStageProbability.value = s.probability
 }
 
 async function saveEditStage(tp: OpportunityType, s: OpportunityStage): Promise<void> {
   const name = editStageName.value.trim()
   if ('' === name) return
-  const result = await store.updateStage(tp.id, s.id, { name, outcome: editStageOutcome.value })
+  const result = await store.updateStage(tp.id, s.id, {
+    name,
+    outcome: editStageOutcome.value,
+    probability: clampProbability(editStageProbability.value, editStageOutcome.value),
+  })
   if (result.ok) {
     editingStageId.value = null
   } else {
@@ -243,9 +262,25 @@ async function removeStage(tp: OpportunityType, s: OpportunityStage): Promise<vo
             >
               <template v-if="editingStageId === s.id">
                 <input v-model="editStageName" type="text" maxlength="255" class="stage-name-input" />
-                <select v-model="editStageOutcome" class="outcome-select">
+                <select
+                  v-model="editStageOutcome"
+                  class="outcome-select"
+                  @change="editStageProbability = clampProbability(editStageProbability, editStageOutcome)"
+                >
                   <option v-for="o in OUTCOMES" :key="o" :value="o">{{ outcomeLabel(o) }}</option>
                 </select>
+                <label class="prob-field" :title="t('adminOpportunityTypes.probabilityHint')">
+                  <input
+                    v-model.number="editStageProbability"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="5"
+                    class="prob-input"
+                    :disabled="editStageOutcome !== 'open'"
+                  />
+                  <span>%</span>
+                </label>
                 <div class="stage-row-actions">
                   <button type="button" class="btn-mini" @click="saveEditStage(type, s)">{{ t('admin.save') }}</button>
                   <button type="button" class="btn-mini btn-mini--ghost" @click="editingStageId = null">{{ t('adminUsers.cancel') }}</button>
@@ -255,6 +290,7 @@ async function removeStage(tp: OpportunityType, s: OpportunityStage): Promise<vo
                 <span class="drag-handle" :title="t('adminOpportunityTypes.dragHint')" aria-hidden="true">⠿</span>
                 <span class="stage-order">{{ si + 1 }}.</span>
                 <span class="stage-name">{{ s.name }}</span>
+                <span class="prob-badge" :title="t('adminOpportunityTypes.probabilityHint')">{{ s.probability }}%</span>
                 <span class="badge" :class="`badge--${s.outcome}`">{{ outcomeLabel(s.outcome) }}</span>
                 <div class="stage-row-actions">
                   <button type="button" class="btn-icon" :title="t('admin.edit')" :aria-label="t('admin.edit')" @click="startEditStage(s)"><IconEdit /></button>
@@ -274,9 +310,25 @@ async function removeStage(tp: OpportunityType, s: OpportunityStage): Promise<vo
               :placeholder="t('adminOpportunityTypes.stageNamePlaceholder')"
               @keyup.enter="onAddStage(type)"
             />
-            <select v-model="stageOutcome" class="outcome-select">
+            <select
+              v-model="stageOutcome"
+              class="outcome-select"
+              @change="stageProbability = clampProbability(stageProbability, stageOutcome)"
+            >
               <option v-for="o in OUTCOMES" :key="o" :value="o">{{ outcomeLabel(o) }}</option>
             </select>
+            <label class="prob-field" :title="t('adminOpportunityTypes.probabilityHint')">
+              <input
+                v-model.number="stageProbability"
+                type="number"
+                min="0"
+                max="100"
+                step="5"
+                class="prob-input"
+                :disabled="stageOutcome !== 'open'"
+              />
+              <span>%</span>
+            </label>
             <button type="button" class="btn-mini" @click="onAddStage(type)">+ {{ t('adminOpportunityTypes.addStageButton') }}</button>
           </div>
         </div>
@@ -534,6 +586,43 @@ async function removeStage(tp: OpportunityType, s: OpportunityStage): Promise<vo
   outline: 2px solid var(--login-primary, #ed2044);
   outline-offset: -1px;
   background: #fff;
+}
+
+.prob-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #545f71;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.prob-input {
+  width: 4.2rem;
+  padding: 0.45rem 0.5rem;
+  background: #f7f8fb;
+  border: 1px solid #d4dae6;
+  border-radius: 0.5rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.prob-input:focus {
+  outline: 2px solid var(--login-primary, #ed2044);
+  outline-offset: -1px;
+  background: #fff;
+}
+
+.prob-input:disabled {
+  opacity: 0.55;
+}
+
+.prob-badge {
+  flex-shrink: 0;
+  color: #545f71;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .outcome-select {

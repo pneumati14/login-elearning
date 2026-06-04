@@ -72,6 +72,7 @@ const panels = computed<Record<string, Panel>>(() => {
     const crmItems: MenuItem[] = [
       { label: t('nav.adminCustomers'), icon: 'team-career.svg', type: 'route', to: '/admin/customers' },
       { label: t('nav.adminTasks'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/tasks' },
+      { label: t('nav.adminReports'), icon: 'download-research.svg', type: 'route', to: '/admin/reports' },
     ]
     if (auth.canManageCatalog) {
       crmItems.push(

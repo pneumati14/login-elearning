@@ -189,6 +189,7 @@ final class AdminOpportunityTypeController extends AbstractController
                     'name' => $s->getName(),
                     'position' => $s->getPosition(),
                     'outcome' => $s->getOutcome(),
+                    'probability' => $s->getProbability(),
                 ],
                 $t->getStages()->toArray(),
             ),
