@@ -34,6 +34,10 @@ class Customer
         self::BILLING_PERIOD_SEMIANNUAL,
         self::BILLING_PERIOD_YEARLY,
     ];
+
+    public const BILLING_MODE_ADVANCE = 'advance';
+    public const BILLING_MODE_ARREARS = 'arrears';
+    public const BILLING_MODES = [self::BILLING_MODE_ADVANCE, self::BILLING_MODE_ARREARS];
     public const DEFAULT_CURRENCY = 'HUF';
 
     #[ORM\Id]
@@ -137,6 +141,14 @@ class Customer
     #[ORM\Column(length: 16, nullable: true)]
     private ?string $billingPeriod = null;
 
+    /** One of BILLING_MODES: invoiced in advance or in arrears. */
+    #[ORM\Column(length: 16, nullable: true)]
+    private ?string $billingMode = null;
+
+    /** Payment deadline in calendar days. */
+    #[ORM\Column(nullable: true)]
+    private ?int $paymentDueDays = null;
+
     /** The title the monthly fee is invoiced under (admin-managed list). */
     #[ORM\ManyToOne(targetEntity: FeeTitle::class)]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -145,6 +157,29 @@ class Customer
     /** Percentage discount applied to the monthly fee total (0–100). */
     #[ORM\Column(type: 'decimal', precision: 5, scale: 2, nullable: true)]
     private ?string $feeDiscountPercent = null;
+
+    /**
+     * Whole-fee percentage raises, stacking in date order. The fee
+     * items keep their list prices; the raises live here.
+     *
+     * @var Collection<int, CustomerFeeRaise>
+     */
+    #[ORM\OneToMany(mappedBy: 'customer', targetEntity: CustomerFeeRaise::class, cascade: ['remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['effectiveFrom' => 'ASC', 'id' => 'ASC'])]
+    private Collection $feeRaises;
+
+    /** Does the customer work with purchase orders? Gates the PO list. */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $hasPo = false;
+
+    /**
+     * PO numbers with validity periods — old ones stay as history.
+     *
+     * @var Collection<int, CustomerPoNumber>
+     */
+    #[ORM\OneToMany(mappedBy: 'customer', targetEntity: CustomerPoNumber::class, cascade: ['remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['validFrom' => 'ASC', 'id' => 'ASC'])]
+    private Collection $poNumbers;
 
     /**
      * Contract attachments (PDF, Word, image). Removed with the customer;
@@ -186,6 +221,8 @@ class Customer
         $this->opportunities = new ArrayCollection();
         $this->activities = new ArrayCollection();
         $this->contractFiles = new ArrayCollection();
+        $this->poNumbers = new ArrayCollection();
+        $this->feeRaises = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -325,7 +362,7 @@ class Customer
      *
      * @return array<string, string>
      */
-    public function monthlyFeeTotals(\DateTimeImmutable $date, bool $applyDiscount = true): array
+    public function monthlyFeeTotals(\DateTimeImmutable $date, bool $effective = true): array
     {
         $totals = [];
         foreach ($this->feeItems as $item) {
@@ -336,13 +373,30 @@ class Customer
         }
         ksort($totals);
 
-        // The customer-level discount makes the total the REAL invoiced
-        // amount; the per-item list prices stay untouched.
-        $factor = $applyDiscount && null !== $this->feeDiscountPercent
-            ? 1 - ((float) $this->feeDiscountPercent) / 100
-            : 1.0;
+        // The REAL invoiced amount: list-price sum × discount × every
+        // whole-fee raise already effective on the date. The per-item
+        // list prices stay untouched.
+        $factor = 1.0;
+        if ($effective) {
+            if (null !== $this->feeDiscountPercent) {
+                $factor *= 1 - ((float) $this->feeDiscountPercent) / 100;
+            }
+            foreach ($this->feeRaises as $raise) {
+                if ($raise->getEffectiveFrom() <= $date) {
+                    $factor *= 1 + ((float) $raise->getPercent()) / 100;
+                }
+            }
+        }
 
         return array_map(fn (float $sum): string => number_format($sum * $factor, 2, '.', ''), $totals);
+    }
+
+    /**
+     * @return Collection<int, CustomerFeeRaise>
+     */
+    public function getFeeRaises(): Collection
+    {
+        return $this->feeRaises;
     }
 
     /**
@@ -401,6 +455,35 @@ class Customer
         return $this;
     }
 
+    public function getBillingMode(): ?string
+    {
+        return $this->billingMode;
+    }
+
+    public function setBillingMode(?string $billingMode): static
+    {
+        $this->billingMode = null !== $billingMode && \in_array($billingMode, self::BILLING_MODES, true)
+            ? $billingMode
+            : null;
+
+        return $this;
+    }
+
+    public function getPaymentDueDays(): ?int
+    {
+        return $this->paymentDueDays;
+    }
+
+    /** Clamped to 0–365; null means "not set". */
+    public function setPaymentDueDays(?int $paymentDueDays): static
+    {
+        $this->paymentDueDays = null === $paymentDueDays
+            ? null
+            : max(0, min(365, $paymentDueDays));
+
+        return $this;
+    }
+
     public function getFeeTitle(): ?FeeTitle
     {
         return $this->feeTitle;
@@ -436,6 +519,26 @@ class Customer
     public function getContractFiles(): Collection
     {
         return $this->contractFiles;
+    }
+
+    public function hasPo(): bool
+    {
+        return $this->hasPo;
+    }
+
+    public function setHasPo(bool $hasPo): static
+    {
+        $this->hasPo = $hasPo;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, CustomerPoNumber>
+     */
+    public function getPoNumbers(): Collection
+    {
+        return $this->poNumbers;
     }
 
     public function getValidFrom(): ?\DateTimeImmutable

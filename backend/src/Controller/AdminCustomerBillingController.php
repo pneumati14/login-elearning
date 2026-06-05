@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Customer;
 use App\Entity\CustomerContractFile;
+use App\Entity\CustomerPoNumber;
 use App\Entity\FeeTitle;
 use App\Service\MediaStorage;
 use Doctrine\ORM\EntityManagerInterface;
@@ -80,12 +81,32 @@ final class AdminCustomerBillingController extends AbstractController
             $customer->setBillingPeriod(\is_string($raw) && '' !== $raw ? $raw : null);
         }
 
+        if (\array_key_exists('billingMode', $payload)) {
+            $raw = $payload['billingMode'];
+            if (null !== $raw && '' !== $raw && !\in_array($raw, Customer::BILLING_MODES, true)) {
+                return $this->json(['error' => 'Érvénytelen számlázási mód.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            }
+            $customer->setBillingMode(\is_string($raw) && '' !== $raw ? $raw : null);
+        }
+
+        if (\array_key_exists('paymentDueDays', $payload)) {
+            $raw = $payload['paymentDueDays'];
+            if (null !== $raw && '' !== $raw && (!is_numeric($raw) || (int) $raw != (float) $raw || (int) $raw < 0 || (int) $raw > 365)) {
+                return $this->json(['error' => 'A fizetési határidő 0 és 365 közötti egész szám lehet.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            }
+            $customer->setPaymentDueDays(null === $raw || '' === $raw ? null : (int) $raw);
+        }
+
         if (\array_key_exists('feeDiscountPercent', $payload)) {
             $raw = $payload['feeDiscountPercent'];
             if (null !== $raw && '' !== $raw && (!is_numeric($raw) || (float) $raw < 0 || (float) $raw > 100)) {
                 return $this->json(['error' => 'A kedvezmény 0 és 100 közötti szám lehet.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
             }
             $customer->setFeeDiscountPercent(null === $raw || '' === $raw ? null : (string) $raw);
+        }
+
+        if (\array_key_exists('hasPo', $payload)) {
+            $customer->setHasPo((bool) $payload['hasPo']);
         }
 
         if (\array_key_exists('feeTitleId', $payload)) {
@@ -190,6 +211,112 @@ final class AdminCustomerBillingController extends AbstractController
         return $this->json(self::serializeBilling($customer));
     }
 
+    #[Route('/po-numbers', name: 'po_create', methods: ['POST'])]
+    public function createPo(int $customerId, Request $request): JsonResponse
+    {
+        $customer = $this->findCustomer($customerId);
+        if (null === $customer) {
+            return $this->json(['error' => 'Az ügyfél nem található.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $po = (new CustomerPoNumber())->setCustomer($customer);
+        $error = $this->applyPo($po, $request);
+        if (null !== $error) {
+            return $this->json(['error' => $error], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $this->entityManager->persist($po);
+        $customer->touch();
+        $this->entityManager->flush();
+        $this->entityManager->refresh($customer);
+
+        return $this->json(self::serializeBilling($customer), JsonResponse::HTTP_CREATED);
+    }
+
+    #[Route('/po-numbers/{poId<\d+>}', name: 'po_update', methods: ['PUT'])]
+    public function updatePo(int $customerId, int $poId, Request $request): JsonResponse
+    {
+        $po = $this->findPo($customerId, $poId);
+        if (null === $po) {
+            return $this->json(['error' => 'A PO szám nem található.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $error = $this->applyPo($po, $request);
+        if (null !== $error) {
+            return $this->json(['error' => $error], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $customer = $po->getCustomer();
+        $customer->touch();
+        $this->entityManager->flush();
+        $this->entityManager->refresh($customer);
+
+        return $this->json(self::serializeBilling($customer));
+    }
+
+    #[Route('/po-numbers/{poId<\d+>}', name: 'po_delete', methods: ['DELETE'])]
+    public function deletePo(int $customerId, int $poId): JsonResponse
+    {
+        $po = $this->findPo($customerId, $poId);
+        if (null === $po) {
+            return $this->json(['error' => 'A PO szám nem található.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $customer = $po->getCustomer();
+        $this->entityManager->remove($po);
+        $customer->touch();
+        $this->entityManager->flush();
+        $this->entityManager->refresh($customer);
+
+        return $this->json(self::serializeBilling($customer));
+    }
+
+    /** Shared field handling of the PO create/update payloads. */
+    private function applyPo(CustomerPoNumber $po, Request $request): ?string
+    {
+        $payload = json_decode($request->getContent(), true);
+        if (!\is_array($payload)) {
+            return 'Érvénytelen kérés.';
+        }
+
+        $number = trim((string) ($payload['poNumber'] ?? ''));
+        if ('' === $number) {
+            return 'A PO szám kötelező.';
+        }
+        $po->setPoNumber(mb_substr($number, 0, 255));
+
+        foreach (['validFrom', 'validUntil'] as $key) {
+            $raw = $payload[$key] ?? null;
+            if (null === $raw || '' === $raw) {
+                $po->{'set'.ucfirst($key)}(null);
+                continue;
+            }
+            $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', (string) $raw);
+            if (!$parsed instanceof \DateTimeImmutable) {
+                return 'Érvénytelen dátum (YYYY-MM-DD).';
+            }
+            $po->{'set'.ucfirst($key)}($parsed);
+        }
+        if (null !== $po->getValidFrom() && null !== $po->getValidUntil() && $po->getValidUntil() < $po->getValidFrom()) {
+            return 'A záró dátum nem lehet korábbi, mint a kezdő dátum.';
+        }
+
+        $notes = $payload['notes'] ?? null;
+        $po->setNotes(\is_string($notes) && '' !== trim($notes) ? trim($notes) : null);
+
+        return null;
+    }
+
+    private function findPo(int $customerId, int $poId): ?CustomerPoNumber
+    {
+        $po = $this->entityManager->find(CustomerPoNumber::class, $poId);
+        if (!$po instanceof CustomerPoNumber || $po->getCustomer()->getId() !== $customerId) {
+            return null;
+        }
+
+        return $po;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -199,9 +326,23 @@ final class AdminCustomerBillingController extends AbstractController
             'contractNumber' => $c->getContractNumber(),
             'firstInvoiceDate' => $c->getFirstInvoiceDate()?->format('Y-m-d'),
             'billingPeriod' => $c->getBillingPeriod(),
+            'billingMode' => $c->getBillingMode(),
+            'paymentDueDays' => $c->getPaymentDueDays(),
             'feeDiscountPercent' => $c->getFeeDiscountPercent(),
             'feeTitleId' => $c->getFeeTitle()?->getId(),
             'feeTitleName' => $c->getFeeTitle()?->getName(),
+            'hasPo' => $c->hasPo(),
+            'poNumbers' => array_map(
+                static fn (CustomerPoNumber $po): array => [
+                    'id' => $po->getId(),
+                    'poNumber' => $po->getPoNumber(),
+                    'validFrom' => $po->getValidFrom()?->format('Y-m-d'),
+                    'validUntil' => $po->getValidUntil()?->format('Y-m-d'),
+                    'notes' => $po->getNotes(),
+                    'createdAt' => $po->getCreatedAt()->format(\DateTimeInterface::ATOM),
+                ],
+                $c->getPoNumbers()->toArray(),
+            ),
             'contractFiles' => array_map(
                 static fn (CustomerContractFile $f): array => [
                     'id' => $f->getId(),

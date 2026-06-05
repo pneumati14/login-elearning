@@ -220,14 +220,50 @@ function openRaise(): void {
   showForm.value = false
 }
 
-// Live preview of the raised totals, per currency.
+// Live preview: the current REAL total raised by the entered percent.
 const raisePreview = computed(() => {
   const pct = Number(raisePercent.value)
   if (!pct || pct <= -100) return null
-  return props.customer.monthlyFeeGrossTotals
+  return props.customer.monthlyFeeTotals
     .map((tt) => fmtMoney(String(Number(tt.amount) * (1 + pct / 100)), tt.currency))
     .join(' · ')
 })
+
+// ── Footer rows ──────────────────────────────────────────────────────
+// Base line: list-price sum × discount (no raises yet); then one row
+// per raise with the CUMULATIVE total after it, in date order.
+const discountedBaseTotals = computed(() => {
+  const factor = 1 - Number(props.customer.billing.feeDiscountPercent ?? 0) / 100
+  return props.customer.monthlyFeeGrossTotals.map((tt) => ({
+    currency: tt.currency,
+    amount: String(Number(tt.amount) * factor),
+  }))
+})
+
+const raiseRows = computed(() => {
+  const sorted = [...props.customer.feeRaises].sort((a, b) =>
+    a.effectiveFrom === b.effectiveFrom ? a.id - b.id : a.effectiveFrom < b.effectiveFrom ? -1 : 1,
+  )
+  let factor = 1
+  return sorted.map((raise) => {
+    factor *= 1 + Number(raise.percent) / 100
+    const f = factor
+    return {
+      raise,
+      percentLabel: String(Number(raise.percent)),
+      totals: discountedBaseTotals.value.map((tt) => ({
+        currency: tt.currency,
+        amount: String(Number(tt.amount) * f),
+      })),
+    }
+  })
+})
+
+async function onDeleteRaise(raiseId: number): Promise<void> {
+  if (!window.confirm(t('adminCustomers.raiseDeleteConfirm'))) return
+  const result = await store.deleteFeeRaise(props.customer.id, raiseId)
+  if (!result.ok) window.alert(result.error ?? t('admin.deleteFailed'))
+}
 
 async function onRaise(): Promise<void> {
   raiseError.value = null
@@ -244,8 +280,8 @@ async function onRaise(): Promise<void> {
 
 <template>
   <div class="fee-panel">
-    <!-- ── Active total ────────────────────────────────────────────── -->
-    <div class="fee-summary">
+    <!-- ── Active total (hidden while a form is open) ──────────────── -->
+    <div v-if="!showForm && !showRaise" class="fee-summary">
       <div class="fee-sum-card">
         <span class="fee-sum-label">{{ t('adminCustomers.feeSumActive') }}</span>
         <span v-if="customer.monthlyFeeTotals.length === 0" class="fee-sum-value">—</span>
@@ -290,11 +326,11 @@ async function onRaise(): Promise<void> {
       </div>
 
       <div class="fee-head-actions">
-        <button type="button" class="btn-ghost btn-raise-open" @click="showRaise ? (showRaise = false) : openRaise()">
-          {{ showRaise ? t('adminUsers.cancel') : t('adminCustomers.raise') }}
+        <button type="button" class="btn-ghost btn-raise-open" @click="openRaise()">
+          {{ t('adminCustomers.raise') }}
         </button>
-        <button type="button" class="btn-submit" @click="showForm ? closeForm() : openCreate()">
-          {{ showForm ? t('adminUsers.cancel') : '+ ' + t('adminCustomers.feeAddButton') }}
+        <button type="button" class="btn-submit" @click="openCreate()">
+          {{ '+ ' + t('adminCustomers.feeAddButton') }}
         </button>
       </div>
     </div>
@@ -388,10 +424,10 @@ async function onRaise(): Promise<void> {
       </div>
     </form>
 
-    <!-- ── Items ───────────────────────────────────────────────────── -->
-    <p v-if="customer.feeItems.length === 0" class="muted">{{ t('adminCustomers.feeEmpty') }}</p>
+    <!-- ── Items (hidden while a form is open) ─────────────────────── -->
+    <p v-if="!showForm && !showRaise && customer.feeItems.length === 0" class="muted">{{ t('adminCustomers.feeEmpty') }}</p>
 
-    <div v-else class="fee-table-wrap">
+    <div v-else-if="!showForm && !showRaise" class="fee-table-wrap">
       <table class="fee-table">
         <thead>
           <tr>
@@ -458,11 +494,25 @@ async function onRaise(): Promise<void> {
           <tr v-if="Number(customer.billing.feeDiscountPercent ?? 0) > 0" class="fee-net-row">
             <td>{{ t('adminCustomers.feeNetTotalRow') }}</td>
             <td class="num fee-total-cell fee-net-cell">
-              <div v-for="tt in customer.monthlyFeeTotals" :key="tt.currency">
+              <div v-for="tt in discountedBaseTotals" :key="tt.currency">
                 {{ fmtMoney(tt.amount, tt.currency) }}
               </div>
             </td>
             <td colspan="3" class="fee-total-hint">−{{ Number(customer.billing.feeDiscountPercent) }}%</td>
+          </tr>
+          <!-- One row per whole-fee raise: percent, date, the total after it. -->
+          <tr v-for="row in raiseRows" :key="row.raise.id" class="fee-raise-row">
+            <td>{{ t('adminCustomers.raiseRowLabel', { percent: row.percentLabel, date: row.raise.effectiveFrom }) }}</td>
+            <td class="num fee-total-cell">
+              <div v-for="tt in row.totals" :key="tt.currency">
+                {{ fmtMoney(tt.amount, tt.currency) }}
+              </div>
+            </td>
+            <td colspan="3" class="fee-total-hint fee-raise-actions">
+              <button type="button" class="btn-raise-del" :title="t('admin.delete')" @click="onDeleteRaise(row.raise.id)">
+                ✕
+              </button>
+            </td>
           </tr>
         </tfoot>
       </table>
@@ -555,6 +605,32 @@ async function onRaise(): Promise<void> {
 
 .fee-net-cell {
   font-size: 1.02rem;
+}
+
+/* Raise history rows under the net total: amber band, cumulative totals. */
+.fee-table tfoot .fee-raise-row td {
+  background: #fff7ed;
+  border-top: 1px solid #fcd9a8;
+  color: #9a6b1f;
+  font-weight: 700;
+}
+
+.fee-raise-actions {
+  text-align: right;
+}
+
+.btn-raise-del {
+  padding: 0.1rem 0.5rem;
+  background: none;
+  border: 1px solid #e8c489;
+  border-radius: 0.4rem;
+  color: #9a6b1f;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.btn-raise-del:hover {
+  background: #fcecd2;
 }
 
 .fee-head-actions {

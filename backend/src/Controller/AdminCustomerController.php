@@ -7,6 +7,7 @@ use App\Entity\Contact;
 use App\Entity\Customer;
 use App\Entity\CustomerCard;
 use App\Entity\CustomerFeeItem;
+use App\Entity\CustomerFeeRaise;
 use App\Entity\CustomerSalesAssignment;
 use App\Repository\CustomerRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -255,6 +256,15 @@ final class AdminCustomerController extends AbstractController
             'status' => $c->getStatus(),
             'monthlyFeeTotals' => $feeTotals,
             'monthlyFeeGrossTotals' => $feeGrossTotals,
+            'feeRaises' => array_map(
+                static fn (CustomerFeeRaise $r): array => [
+                    'id' => $r->getId(),
+                    'percent' => $r->getPercent(),
+                    'effectiveFrom' => $r->getEffectiveFrom()->format('Y-m-d'),
+                    'createdAt' => $r->getCreatedAt()->format(\DateTimeInterface::ATOM),
+                ],
+                $c->getFeeRaises()->toArray(),
+            ),
             'feeItems' => array_map(
                 fn (CustomerFeeItem $item): array => $this->serializeFeeItem($item),
                 $c->getFeeItems()->toArray(),

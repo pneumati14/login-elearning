@@ -101,6 +101,14 @@ export interface FeeTotal {
   amount: string
 }
 
+/** One whole-fee percentage raise, effective from a date. */
+export interface FeeRaise {
+  id: number
+  percent: string
+  effectiveFrom: string
+  createdAt: string
+}
+
 /** Workflow: quote → ordered → proforma → proforma paid → procurement → shipping → paid. */
 export type CardOrderStatus =
   | 'quote'
@@ -168,6 +176,10 @@ export type BillingPeriod = 'monthly' | 'quarterly' | 'semiannual' | 'yearly'
 
 export const BILLING_PERIODS: BillingPeriod[] = ['monthly', 'quarterly', 'semiannual', 'yearly']
 
+export type BillingMode = 'advance' | 'arrears'
+
+export const BILLING_MODES: BillingMode[] = ['advance', 'arrears']
+
 export interface ContractFile {
   id: number
   name: string
@@ -175,13 +187,33 @@ export interface ContractFile {
   createdAt: string
 }
 
+export interface PoNumber {
+  id: number
+  poNumber: string
+  validFrom: string | null
+  validUntil: string | null
+  notes: string | null
+  createdAt: string
+}
+
+export interface PoNumberFields {
+  poNumber: string
+  validFrom: string | null
+  validUntil: string | null
+  notes: string | null
+}
+
 export interface CustomerBilling {
   contractNumber: string | null
   firstInvoiceDate: string | null
   billingPeriod: BillingPeriod | null
+  billingMode: BillingMode | null
+  paymentDueDays: number | null
   feeDiscountPercent: string | null
   feeTitleId: number | null
   feeTitleName: string | null
+  hasPo: boolean
+  poNumbers: PoNumber[]
   contractFiles: ContractFile[]
 }
 
@@ -189,8 +221,11 @@ export interface CustomerBillingFields {
   contractNumber: string | null
   firstInvoiceDate: string | null
   billingPeriod: BillingPeriod | null
+  billingMode: BillingMode | null
+  paymentDueDays: number | null
   feeDiscountPercent: string | null
   feeTitleId: number | null
+  hasPo: boolean
 }
 
 export interface Customer {
@@ -199,6 +234,7 @@ export interface Customer {
   status: CustomerStatus
   monthlyFeeTotals: FeeTotal[]
   monthlyFeeGrossTotals: FeeTotal[]
+  feeRaises: FeeRaise[]
   feeItems: FeeItem[]
   cards: CustomerCard[]
   address: Address
@@ -534,7 +570,7 @@ export const useCustomersStore = defineStore('customers', () => {
         body: undefined === body ? undefined : JSON.stringify(body),
       })
       const data = (await response.json().catch(() => null)) as
-        | { feeItems: FeeItem[]; monthlyFeeTotals: FeeTotal[]; monthlyFeeGrossTotals: FeeTotal[] }
+        | { feeItems: FeeItem[]; monthlyFeeTotals: FeeTotal[]; monthlyFeeGrossTotals: FeeTotal[]; feeRaises: FeeRaise[] }
         | { error?: string }
         | null
       if (!response.ok) {
@@ -544,7 +580,13 @@ export const useCustomersStore = defineStore('customers', () => {
       if (data && 'feeItems' in data) {
         customers.value = customers.value.map((c) =>
           c.id === customerId
-            ? { ...c, feeItems: data.feeItems, monthlyFeeTotals: data.monthlyFeeTotals, monthlyFeeGrossTotals: data.monthlyFeeGrossTotals }
+            ? {
+                ...c,
+                feeItems: data.feeItems,
+                monthlyFeeTotals: data.monthlyFeeTotals,
+                monthlyFeeGrossTotals: data.monthlyFeeGrossTotals,
+                feeRaises: data.feeRaises,
+              }
             : c,
         )
       }
@@ -570,9 +612,13 @@ export const useCustomersStore = defineStore('customers', () => {
     return mutateFee(customerId, `/${feeId}/raise`, 'POST', fields, 'Az áremelés rögzítése nem sikerült.')
   }
 
-  /** Percentage raise applied to every fee item active on the date. */
+  /** Whole-fee percentage raise, stored as its own history row. */
   function raiseAllFees(customerId: number, percent: string, effectiveFrom: string): Promise<MutationResult> {
     return mutateFee(customerId, '/raise-all', 'POST', { percent, effectiveFrom }, 'Az áremelés rögzítése nem sikerült.')
+  }
+
+  function deleteFeeRaise(customerId: number, raiseId: number): Promise<MutationResult> {
+    return mutateFee(customerId, `/raises/${raiseId}`, 'DELETE', undefined, 'A törlés nem sikerült.')
   }
 
   // ── Cards & their orders ──────────────────────────────────────────
@@ -720,6 +766,45 @@ export const useCustomersStore = defineStore('customers', () => {
     }
   }
 
+  // PO numbers: each mutation returns the billing block.
+  async function mutatePo(
+    customerId: number,
+    path: string,
+    method: 'POST' | 'PUT' | 'DELETE',
+    body?: unknown,
+    fallback = 'A művelet nem sikerült.',
+  ): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${customerId}/billing/po-numbers${path}`, {
+        method,
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: undefined === body ? undefined : JSON.stringify(body),
+      })
+      const data = (await response.json().catch(() => null)) as CustomerBilling | { error?: string } | null
+      if (!response.ok) {
+        const message = data && 'error' in data && data.error ? data.error : fallback
+        return { ok: false, error: message }
+      }
+      if (data && 'poNumbers' in data) patchBilling(customerId, data)
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  function createPoNumber(customerId: number, fields: PoNumberFields): Promise<MutationResult> {
+    return mutatePo(customerId, '', 'POST', fields, 'A PO szám felvétele nem sikerült.')
+  }
+
+  function updatePoNumber(customerId: number, poId: number, fields: PoNumberFields): Promise<MutationResult> {
+    return mutatePo(customerId, `/${poId}`, 'PUT', fields, 'A mentés nem sikerült.')
+  }
+
+  function deletePoNumber(customerId: number, poId: number): Promise<MutationResult> {
+    return mutatePo(customerId, `/${poId}`, 'DELETE', undefined, 'A törlés nem sikerült.')
+  }
+
   /** Same-origin download URL for a contract attachment. */
   function contractFileUrl(customerId: number, fileId: number): string {
     return `${API_URL}/admin/customers/${customerId}/billing/contracts/${fileId}`
@@ -829,6 +914,7 @@ export const useCustomersStore = defineStore('customers', () => {
     deleteFee,
     raiseFee,
     raiseAllFees,
+    deleteFeeRaise,
     createCard,
     updateCard,
     deleteCard,
@@ -839,6 +925,9 @@ export const useCustomersStore = defineStore('customers', () => {
     updateBilling,
     uploadContractFile,
     deleteContractFile,
+    createPoNumber,
+    updatePoNumber,
+    deletePoNumber,
     contractFileUrl,
     createSalesAssignment,
     updateSalesAssignment,

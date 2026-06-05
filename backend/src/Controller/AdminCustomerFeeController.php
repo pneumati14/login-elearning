@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Customer;
 use App\Entity\CustomerFeeItem;
+use App\Entity\CustomerFeeRaise;
 use App\Entity\Product;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -108,10 +109,9 @@ final class AdminCustomerFeeController extends AbstractController
      * unitAmount/quantity).
      */
     /**
-     * Raise the WHOLE monthly fee by a percentage: every item active on
-     * the effective date is closed the day before and re-opened at the
-     * raised price (per-head items raise their unit price). History is
-     * kept the same way the per-item raise did.
+     * Raise the WHOLE monthly fee by a percentage from a date. The fee
+     * items are NOT rewritten — the raise is stored as its own row and
+     * the totals multiply through every raise effective on the day.
      * Body: { "percent": 8, "effectiveFrom": "YYYY-MM-DD" }.
      */
     #[Route('/raise-all', name: 'raise_all', methods: ['POST'])]
@@ -131,58 +131,40 @@ final class AdminCustomerFeeController extends AbstractController
         if (!is_numeric($percent) || (float) $percent <= -100 || (float) $percent > 1000 || 0.0 === (float) $percent) {
             return $this->json(['error' => 'Az emelés mértéke −100 és 1000 közötti, nullától eltérő szám lehet.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
-        $factor = 1 + ((float) $percent) / 100;
 
         $effectiveFrom = $this->parseDate($payload['effectiveFrom'] ?? null);
         if (!$effectiveFrom instanceof \DateTimeImmutable) {
             return $this->json(['error' => 'A hatályba lépés dátuma kötelező (YYYY-MM-DD).'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        // Items already starting on/after the effective date carry their own
-        // future pricing — only items active on the date AND started before
-        // it are rolled over.
-        $targets = [];
-        foreach ($customer->getFeeItems() as $item) {
-            if (!$item->isActiveOn($effectiveFrom)) {
-                continue;
-            }
-            if (null !== $item->getValidFrom() && $item->getValidFrom() >= $effectiveFrom) {
-                continue;
-            }
-            $targets[] = $item;
-        }
-        if ([] === $targets) {
-            return $this->json(['error' => 'A megadott napon nincs emelhető aktív tétel.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        foreach ($targets as $item) {
-            $successor = new CustomerFeeItem();
-            $successor
-                ->setCustomer($customer)
-                ->setProduct($item->getProduct())
-                ->setName($item->getName())
-                ->setCurrency($item->getCurrency())
-                ->setNotes($item->getNotes())
-                ->setValidFrom($effectiveFrom)
-                ->setValidUntil($item->getValidUntil());
-            if ($item->isPerHead()) {
-                $successor
-                    ->setIsPerHead(true)
-                    ->setUnitAmount(number_format((float) $item->getUnitAmount() * $factor, 2, '.', ''))
-                    ->setQuantity($item->getQuantity());
-                $successor->recomputePerHeadAmount();
-            } else {
-                $successor->setAmount(number_format((float) $item->getAmount() * $factor, 2, '.', ''));
-            }
-            $item->setValidUntil($effectiveFrom->modify('-1 day'));
-            $this->entityManager->persist($successor);
-        }
-
+        $raise = (new CustomerFeeRaise())
+            ->setCustomer($customer)
+            ->setPercent(number_format((float) $percent, 2, '.', ''))
+            ->setEffectiveFrom($effectiveFrom);
+        $this->entityManager->persist($raise);
         $customer->touch();
         $this->entityManager->flush();
         $this->entityManager->refresh($customer);
 
         return $this->json($this->serializeFees($customer), JsonResponse::HTTP_CREATED);
+    }
+
+    /** Remove a mistaken raise row; the totals recompute everywhere. */
+    #[Route('/raises/{raiseId<\d+>}', name: 'raise_delete', methods: ['DELETE'])]
+    public function deleteRaise(int $customerId, int $raiseId): JsonResponse
+    {
+        $raise = $this->entityManager->find(CustomerFeeRaise::class, $raiseId);
+        if (!$raise instanceof CustomerFeeRaise || $raise->getCustomer()->getId() !== $customerId) {
+            return $this->json(['error' => 'Az áremelés nem található.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $customer = $raise->getCustomer();
+        $this->entityManager->remove($raise);
+        $customer->touch();
+        $this->entityManager->flush();
+        $this->entityManager->refresh($customer);
+
+        return $this->json($this->serializeFees($customer));
     }
 
     #[Route('/{id<\d+>}/raise', name: 'raise', methods: ['POST'])]
@@ -386,6 +368,15 @@ final class AdminCustomerFeeController extends AbstractController
             ),
             'monthlyFeeTotals' => $totals,
             'monthlyFeeGrossTotals' => $grossTotals,
+            'feeRaises' => array_map(
+                static fn (CustomerFeeRaise $r): array => [
+                    'id' => $r->getId(),
+                    'percent' => $r->getPercent(),
+                    'effectiveFrom' => $r->getEffectiveFrom()->format('Y-m-d'),
+                    'createdAt' => $r->getCreatedAt()->format(\DateTimeInterface::ATOM),
+                ],
+                $customer->getFeeRaises()->toArray(),
+            ),
         ];
     }
 
