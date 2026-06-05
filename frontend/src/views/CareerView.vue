@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { usePositionsStore } from '@/stores/positions'
 import { useLocalized } from '@/composables/localized'
+import AppSelect from '@/components/AppSelect.vue'
 
 const { t } = useI18n()
 const { l } = useLocalized()
@@ -28,6 +29,12 @@ const benefits = computed(() =>
 const positionsStore = usePositionsStore()
 const { positions, loading: positionsLoading, error: positionsError } = storeToRefs(positionsStore)
 onMounted(() => positionsStore.fetchPositions())
+
+// Options for the downward-opening AppSelect (labels unchanged).
+const positionSelectOptions = computed<{ value: string; label: string }[]>(() => [
+  { value: '', label: t('career.openApplication') },
+  ...positions.value.map((p) => ({ value: l(p.title), label: l(p.title) })),
+])
 
 const positionsSection = ref<HTMLElement | null>(null)
 const applySection = ref<HTMLElement | null>(null)
@@ -172,10 +179,11 @@ function onSubmit() {
             </label>
             <label class="field">
               <span class="field-label">{{ t('career.position') }}</span>
-              <select v-model="form.position">
-                <option value="">{{ t('career.openApplication') }}</option>
-                <option v-for="p in positions" :key="p.id" :value="l(p.title)">{{ l(p.title) }}</option>
-              </select>
+              <AppSelect
+                v-model="form.position"
+                :options="positionSelectOptions"
+                :placeholder="t('career.openApplication')"
+              />
             </label>
           </div>
 
@@ -445,6 +453,21 @@ function onSubmit() {
 .field textarea:focus {
   outline: none;
   border-color: var(--login-primary, #ed2044);
+}
+
+/* The application form uses full-width white inputs; match the AppSelect
+   toggle to that look (its scoped default is the grey admin style). */
+.field :deep(.app-select) {
+  display: flex;
+  width: 100%;
+}
+
+.field :deep(.app-select-toggle) {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  background: #fff;
+  border-color: #d4dae6;
+  font-size: 1rem;
 }
 
 .checkbox-row {

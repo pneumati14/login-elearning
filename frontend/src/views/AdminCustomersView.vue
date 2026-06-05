@@ -12,10 +12,16 @@ import {
   type CustomerStatus,
 } from '@/stores/customers'
 import AddressFieldset from '@/components/AddressFieldset.vue'
+import AppSelect from '@/components/AppSelect.vue'
 import IconView from '@/components/icons/IconView.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 
 const { t, locale } = useI18n()
+
+const statusSelectOptions = computed<{ value: CustomerStatus; label: string }[]>(() => [
+  { value: 'potential', label: t('adminCustomers.status_potential') },
+  { value: 'existing', label: t('adminCustomers.status_existing') },
+])
 const store = useCustomersStore()
 const { customers, loading, error } = storeToRefs(store)
 
@@ -203,10 +209,7 @@ function validityLabel(c: Customer): string {
           </label>
           <label class="field">
             <span>{{ t('adminCustomers.status') }}</span>
-            <select v-model="form.status">
-              <option value="potential">{{ t('adminCustomers.status_potential') }}</option>
-              <option value="existing">{{ t('adminCustomers.status_existing') }}</option>
-            </select>
+            <AppSelect v-model="form.status" :options="statusSelectOptions" />
           </label>
           <label class="field">
             <span>{{ t('adminCustomers.website') }}</span>

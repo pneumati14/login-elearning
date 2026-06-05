@@ -11,6 +11,7 @@ import {
 } from '@/stores/opportunityTypes'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
+import AppSelect from '@/components/AppSelect.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -38,6 +39,11 @@ watch(id, load)
 function outcomeLabel(o: StageOutcome): string {
   return t(`adminOpportunityTypes.outcome_${o}`)
 }
+
+// Options for the downward-opening AppSelect (labels unchanged).
+const outcomeSelectOptions = computed<{ value: StageOutcome; label: string }[]>(() =>
+  OUTCOMES.map((o) => ({ value: o, label: outcomeLabel(o) })),
+)
 
 // ── Edit type (name + active + validity) ────────────────────────────────
 const editing = ref(false)
@@ -262,13 +268,13 @@ async function removeStage(tp: OpportunityType, s: OpportunityStage): Promise<vo
             >
               <template v-if="editingStageId === s.id">
                 <input v-model="editStageName" type="text" maxlength="255" class="stage-name-input" />
-                <select
+                <AppSelect
                   v-model="editStageOutcome"
                   class="outcome-select"
-                  @change="editStageProbability = clampProbability(editStageProbability, editStageOutcome)"
-                >
-                  <option v-for="o in OUTCOMES" :key="o" :value="o">{{ outcomeLabel(o) }}</option>
-                </select>
+                  compact
+                  :options="outcomeSelectOptions"
+                  @change="(v) => (editStageProbability = clampProbability(editStageProbability, v))"
+                />
                 <label class="prob-field" :title="t('adminOpportunityTypes.probabilityHint')">
                   <input
                     v-model.number="editStageProbability"
@@ -310,13 +316,13 @@ async function removeStage(tp: OpportunityType, s: OpportunityStage): Promise<vo
               :placeholder="t('adminOpportunityTypes.stageNamePlaceholder')"
               @keyup.enter="onAddStage(type)"
             />
-            <select
+            <AppSelect
               v-model="stageOutcome"
               class="outcome-select"
-              @change="stageProbability = clampProbability(stageProbability, stageOutcome)"
-            >
-              <option v-for="o in OUTCOMES" :key="o" :value="o">{{ outcomeLabel(o) }}</option>
-            </select>
+              compact
+              :options="outcomeSelectOptions"
+              @change="(v) => (stageProbability = clampProbability(stageProbability, v))"
+            />
             <label class="prob-field" :title="t('adminOpportunityTypes.probabilityHint')">
               <input
                 v-model.number="stageProbability"

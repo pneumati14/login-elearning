@@ -1,14 +1,22 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useUsersStore, type NewUser, type UserRole } from '@/stores/users'
 import { useAuthStore, type AuthUser } from '@/stores/auth'
+import AppSelect from '@/components/AppSelect.vue'
 
 const { t } = useI18n()
 const store = useUsersStore()
 const auth = useAuthStore()
 const { users, loading, error } = storeToRefs(store)
+
+const roleSelectOptions = computed<{ value: UserRole; label: string }[]>(() => [
+  { value: 'user', label: t('adminUsers.roleUser') },
+  { value: 'sales', label: t('adminUsers.roleSales') },
+  { value: 'sales_manager', label: t('adminUsers.roleSalesManager') },
+  { value: 'admin', label: t('adminUsers.roleAdmin') },
+])
 
 const form = reactive<NewUser>({
   email: '',
@@ -178,12 +186,7 @@ function formatDate(iso: string): string {
           </label>
           <label class="field">
             <span class="field-label">{{ t('adminUsers.role') }}</span>
-            <select v-model="form.role">
-              <option value="user">{{ t('adminUsers.roleUser') }}</option>
-              <option value="sales">{{ t('adminUsers.roleSales') }}</option>
-              <option value="sales_manager">{{ t('adminUsers.roleSalesManager') }}</option>
-              <option value="admin">{{ t('adminUsers.roleAdmin') }}</option>
-            </select>
+            <AppSelect v-model="form.role" :options="roleSelectOptions" />
           </label>
 
           <p v-if="formError" class="msg msg--error">{{ formError }}</p>
@@ -227,17 +230,14 @@ function formatDate(iso: string): string {
                 <td :data-label="t('adminUsers.colName')">{{ u.fullName }}</td>
                 <td :data-label="t('adminUsers.colEmail')">{{ u.email }}</td>
                 <td :data-label="t('adminUsers.role')">
-                  <select
+                  <AppSelect
                     v-if="u.id !== auth.user?.id"
                     class="role-select"
-                    :value="u.role"
-                    @change="onChangeRole(u, ($event.target as HTMLSelectElement).value as UserRole)"
-                  >
-                    <option value="user">{{ t('adminUsers.roleUser') }}</option>
-                    <option value="sales">{{ t('adminUsers.roleSales') }}</option>
-                    <option value="sales_manager">{{ t('adminUsers.roleSalesManager') }}</option>
-                    <option value="admin">{{ t('adminUsers.roleAdmin') }}</option>
-                  </select>
+                    compact
+                    :model-value="u.role"
+                    :options="roleSelectOptions"
+                    @change="(v) => onChangeRole(u, v)"
+                  />
                   <span v-else class="role" :class="{ 'role--admin': u.isAdmin }">
                     {{ roleLabel(u.role) }}
                   </span>
@@ -463,20 +463,8 @@ function formatDate(iso: string): string {
   color: #fff;
 }
 
-.role-select {
-  padding: 0.35rem 0.5rem;
-  border: 1px solid #d4dae6;
-  border-radius: 0.45rem;
-  background: #fff;
-  color: var(--login-secondary, #0c1c40);
-  font-size: 0.85rem;
+.role-select :deep(.app-select-toggle) {
   font-weight: 700;
-  cursor: pointer;
-}
-
-.role-select:focus {
-  outline: none;
-  border-color: var(--login-primary, #ed2044);
 }
 
 .cell-action {

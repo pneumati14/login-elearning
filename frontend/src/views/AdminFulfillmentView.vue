@@ -3,10 +3,17 @@ import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useFulfillmentStore, type FulfillmentItem, type FulfillmentStage } from '@/stores/fulfillment'
+import AppSelect from '@/components/AppSelect.vue'
 
 const { t, locale } = useI18n()
 const store = useFulfillmentStore()
 const { types, items, loading, error } = storeToRefs(store)
+
+// Placeholder (null) first, then one entry per category.
+const assignSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminFulfillment.assignPlaceholder') },
+  ...types.value.map((tp) => ({ value: tp.id, label: tp.name })),
+])
 
 onMounted(() => {
   store.fetchTypes()
@@ -50,15 +57,14 @@ function fmtDate(iso: string | null): string {
 }
 
 // ── Categorise an uncategorised deal ─────────────────────────────────
-async function onAssign(item: FulfillmentItem, event: Event): Promise<void> {
-  const value = (event.target as HTMLSelectElement).value
-  if ('' === value) return
-  const result = await store.assignType(item.id, Number(value))
+async function onAssign(item: FulfillmentItem, typeId: number | null): Promise<void> {
+  if (null === typeId) return
+  const result = await store.assignType(item.id, typeId)
   if (!result.ok) {
     window.alert(result.error ?? t('admin.saveFailed'))
   } else {
     // Jump to the category the deal just entered.
-    activeTypeId.value = Number(value)
+    activeTypeId.value = typeId
   }
 }
 
@@ -163,10 +169,13 @@ async function onDrop(stage: FulfillmentStage): Promise<void> {
               </div>
               <label class="intake-assign">
                 <span>{{ t('adminFulfillment.assignLabel') }}</span>
-                <select @change="onAssign(item, $event)">
-                  <option value="" selected disabled>{{ t('adminFulfillment.assignPlaceholder') }}</option>
-                  <option v-for="tp in types" :key="tp.id" :value="tp.id">{{ tp.name }}</option>
-                </select>
+                <AppSelect
+                  class="assign-select"
+                  :model-value="null"
+                  :options="assignSelectOptions"
+                  :placeholder="t('adminFulfillment.assignPlaceholder')"
+                  @change="(v) => onAssign(item, v)"
+                />
               </label>
             </li>
           </ul>
@@ -396,6 +405,10 @@ async function onDrop(stage: FulfillmentStage): Promise<void> {
   color: var(--login-secondary, #0c1c40);
   font-size: 0.92rem;
   font-family: inherit;
+}
+
+.assign-select :deep(.app-select-toggle) {
+  min-width: 220px;
 }
 
 /* ── Kanban ─────────────────────────────────────────────────────────── */

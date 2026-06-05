@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useCustomersStore, type Customer, type FeeItem, type FeeItemFields } from '@/stores/customers'
 import { useProductsStore, productStatus } from '@/stores/products'
+import AppSelect from '@/components/AppSelect.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 
@@ -28,6 +29,18 @@ const productOptions = computed(() => {
 onMounted(() => {
   if (0 === products.value.length) productsStore.fetchProducts()
 })
+
+// ── AppSelect option lists ───────────────────────────────────────────
+const productSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminCustomers.feeProductNone') },
+  ...productOptions.value.map((p) => ({
+    value: p.id,
+    label: p.unitPrice ? `${p.name} — ${fmtMoney(p.unitPrice, p.currency)}` : p.name,
+  })),
+])
+const currencySelectOptions = computed<{ value: string; label: string }[]>(() =>
+  CURRENCIES.map((c) => ({ value: c, label: c })),
+)
 
 // Picking a product prefills the editable fields; clearing it keeps them.
 // For per-head items the catalogue price is the unit price.
@@ -240,12 +253,7 @@ async function onRaise(item: FeeItem): Promise<void> {
       <div class="fee-form-grid">
         <label class="field field--wide">
           <span>{{ t('adminCustomers.feeProduct') }}</span>
-          <select v-model.number="form.productId" @change="onProductPicked">
-            <option :value="null">{{ t('adminCustomers.feeProductNone') }}</option>
-            <option v-for="p in productOptions" :key="p.id" :value="p.id">
-              {{ p.name }}<template v-if="p.unitPrice"> — {{ fmtMoney(p.unitPrice, p.currency) }}</template>
-            </option>
-          </select>
+          <AppSelect v-model="form.productId" :options="productSelectOptions" @change="onProductPicked" />
         </label>
         <label class="field field--wide">
           <span>{{ t('adminCustomers.feeName') }} *</span>
@@ -266,9 +274,7 @@ async function onRaise(item: FeeItem): Promise<void> {
           </label>
           <label class="field">
             <span>{{ t('adminCustomers.currency') }}</span>
-            <select v-model="form.currency">
-              <option v-for="c in CURRENCIES" :key="c" :value="c">{{ c }}</option>
-            </select>
+            <AppSelect v-model="form.currency" :options="currencySelectOptions" />
           </label>
           <p v-if="formPerHeadTotal" class="perhead-total field--wide">
             {{ t('adminCustomers.feeAmount') }}: <strong>{{ formPerHeadTotal }}</strong>
@@ -281,9 +287,7 @@ async function onRaise(item: FeeItem): Promise<void> {
           </label>
           <label class="field">
             <span>{{ t('adminCustomers.currency') }}</span>
-            <select v-model="form.currency">
-              <option v-for="c in CURRENCIES" :key="c" :value="c">{{ c }}</option>
-            </select>
+            <AppSelect v-model="form.currency" :options="currencySelectOptions" />
           </label>
         </template>
         <label class="field">

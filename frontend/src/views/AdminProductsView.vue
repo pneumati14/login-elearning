@@ -7,18 +7,26 @@ import {
   emptyProductFields,
   productStatus,
   CURRENCIES,
+  type Currency,
   type Product,
   type ProductFields,
   type ProductStatus,
 } from '@/stores/products'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
+import AppSelect from '@/components/AppSelect.vue'
 
 const { t } = useI18n()
 const store = useProductsStore()
 const { products, loading, error } = storeToRefs(store)
 
 const search = ref('')
+
+// Options for the downward-opening AppSelect (labels unchanged).
+const currencyOptions: { value: Currency; label: string }[] = CURRENCIES.map((c) => ({
+  value: c,
+  label: c,
+}))
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -161,9 +169,7 @@ function validityLabel(p: Product): string {
           </label>
           <label class="field">
             <span>{{ t('adminProducts.currency') }}</span>
-            <select v-model="form.currency">
-              <option v-for="c in CURRENCIES" :key="c" :value="c">{{ c }}</option>
-            </select>
+            <AppSelect v-model="form.currency" :options="currencyOptions" />
           </label>
           <label class="field">
             <span>{{ t('adminProducts.validFrom') }}</span>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import AppSelect from '@/components/AppSelect.vue'
 import { countries } from '@/data/countries'
 import huPostalData from '@/data/hu-postal-codes.json'
 
@@ -48,7 +49,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [AddressValue] }>()
 
-const { locale } = useI18n()
+const { t, locale } = useI18n()
 
 type LocaleKey = 'hu' | 'en' | 'de' | 'az' | 'es' | 'pl' | 'pt' | 'tr'
 const ensureLocale = (code: string): LocaleKey =>
@@ -71,6 +72,12 @@ const localizedName = (code: string): string => {
   return c ? c.names[ensureLocale(locale.value)] : code
 }
 
+// ── Country AppSelect options (placeholder + localized country names) ──
+const countrySelectOptions = computed<{ value: string; label: string }[]>(() => [
+  { value: '', label: t('address.countryPlaceholder') },
+  ...sortedCountries.value.map((c) => ({ value: c.code, label: localizedName(c.code) })),
+])
+
 const isHungary = computed(() => 'HU' === props.modelValue.country)
 
 const cityListId = computed(() => `${props.idStem ?? 'addr'}-hu-cities`)
@@ -85,8 +92,7 @@ function patch(partial: Partial<AddressValue>): void {
   emit('update:modelValue', { ...props.modelValue, ...partial })
 }
 
-function onCountry(e: Event): void {
-  const v = (e.target as HTMLSelectElement).value
+function onCountry(v: string): void {
   patch({ country: '' === v ? null : v })
 }
 
@@ -134,12 +140,12 @@ function onStreet(e: Event): void {
   <div class="addr-grid">
     <label class="addr-field addr-field--country">
       <span>{{ $t('address.country') }}</span>
-      <select :value="modelValue.country ?? ''" :disabled="disabled" @change="onCountry">
-        <option value="">{{ $t('address.countryPlaceholder') }}</option>
-        <option v-for="c in sortedCountries" :key="c.code" :value="c.code">
-          {{ localizedName(c.code) }}
-        </option>
-      </select>
+      <AppSelect
+        :model-value="modelValue.country ?? ''"
+        :options="countrySelectOptions"
+        :disabled="disabled"
+        @change="onCountry"
+      />
     </label>
 
     <label class="addr-field addr-field--city">

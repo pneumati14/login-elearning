@@ -4,12 +4,26 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useBillingStore, type BillingItem, type BillingItemFields } from '@/stores/billing'
 import { useCustomersStore } from '@/stores/customers'
+import AppSelect from '@/components/AppSelect.vue'
 
 const { t, locale } = useI18n()
 const store = useBillingStore()
 const customersStore = useCustomersStore()
 const { items, loading, error } = storeToRefs(store)
 const { customers } = storeToRefs(customersStore)
+
+// Placeholder ('') first, then one entry per customer (id kept as a string
+// to match addFields.customerId).
+const customerSelectOptions = computed<{ value: string; label: string }[]>(() => [
+  { value: '', label: t('adminBilling.customerPlaceholder') },
+  ...customers.value.map((c) => ({ value: String(c.id), label: c.name })),
+])
+
+const currencySelectOptions: { value: string; label: string }[] = [
+  { value: 'HUF', label: 'HUF' },
+  { value: 'EUR', label: 'EUR' },
+  { value: 'USD', label: 'USD' },
+]
 
 onMounted(() => {
   store.fetchItems()
@@ -172,10 +186,11 @@ async function onDelete(item: BillingItem): Promise<void> {
         <form v-if="showAdd" class="bill-add" @submit.prevent="onAdd">
           <label class="bill-add-field">
             <span>{{ t('adminBilling.colCustomer') }}</span>
-            <select v-model="addFields.customerId" required>
-              <option value="" disabled>{{ t('adminBilling.customerPlaceholder') }}</option>
-              <option v-for="c in customers" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
-            </select>
+            <AppSelect
+              v-model="addFields.customerId"
+              :options="customerSelectOptions"
+              :placeholder="t('adminBilling.customerPlaceholder')"
+            />
           </label>
           <label class="bill-add-field bill-add-field--grow">
             <span>{{ t('adminBilling.colItem') }}</span>
@@ -191,11 +206,7 @@ async function onDelete(item: BillingItem): Promise<void> {
           </label>
           <label class="bill-add-field bill-add-field--narrow">
             <span>{{ t('adminBilling.currency') }}</span>
-            <select v-model="addFields.currency">
-              <option value="HUF">HUF</option>
-              <option value="EUR">EUR</option>
-              <option value="USD">USD</option>
-            </select>
+            <AppSelect v-model="addFields.currency" :options="currencySelectOptions" />
           </label>
           <button type="submit" class="btn-add" :disabled="adding">
             {{ adding ? t('admin.creating') : t('admin.save') }}

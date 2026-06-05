@@ -15,6 +15,7 @@ import {
 import { useOpportunityTypesStore, typeStatus, type OpportunityType } from '@/stores/opportunityTypes'
 import { useProductsStore } from '@/stores/products'
 import ActivityList from '@/components/ActivityList.vue'
+import AppSelect from '@/components/AppSelect.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 
@@ -229,8 +230,7 @@ async function onDeleteDocument(docId: number): Promise<void> {
 }
 
 /** Change an opportunity's stage from the list-view dropdown. */
-async function onStageChange(o: Opportunity, event: Event): Promise<void> {
-  const stageId = Number((event.target as HTMLSelectElement).value)
+async function onStageChange(o: Opportunity, stageId: number): Promise<void> {
   if (stageId === o.stageId) return
   const result = await store.moveStage(props.customer.id, o.id, stageId)
   if (!result.ok) window.alert(result.error ?? t('admin.saveFailed'))
@@ -280,6 +280,34 @@ function shortDate(iso: string): string {
 }
 
 const hasTypes = computed(() => typesStore.types.length > 0)
+
+// ── AppSelect option lists (downward-opening custom select) ───────────
+const pipelineSelectOptions = computed<{ value: number; label: string }[]>(() =>
+  typesStore.types.map((tp) => ({ value: tp.id, label: `${tp.name} (${typeCount(tp.id)})` })),
+)
+const typeSelectOptions = computed<{ value: number; label: string }[]>(() =>
+  usableTypes.value.map((tp) => ({ value: tp.id, label: tp.name })),
+)
+const formStageSelectOptions = computed<{ value: number; label: string }[]>(() =>
+  formStages.value.map((s) => ({ value: s.id, label: s.name })),
+)
+const currencySelectOptions = CURRENCIES.map((c) => ({ value: c, label: c }))
+const contactSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminCustomers.oppNoContact') },
+  ...props.customer.contacts.map((ct) => ({
+    value: ct.id,
+    label: `${ct.lastName} ${ct.firstName}`.trim() || ct.email || '',
+  })),
+])
+const productSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminCustomers.oppCustomLine') },
+  ...productsStore.products.map((p) => ({ value: p.id, label: p.name })),
+])
+
+/** Stage options for the list-view row select of a given opportunity. */
+function stageSelectOptions(typeId: number): { value: number; label: string }[] {
+  return stagesForType(typeId).map((s) => ({ value: s.id, label: s.name }))
+}
 </script>
 
 <template>
@@ -300,11 +328,7 @@ const hasTypes = computed(() => typesStore.types.length > 0)
         <div class="opp-head-right">
           <label v-if="view === 'kanban'" class="pipeline-select">
             <span>{{ t('adminCustomers.oppPipeline') }}</span>
-            <select v-model.number="selectedTypeId">
-              <option v-for="tp in typesStore.types" :key="tp.id" :value="tp.id">
-                {{ tp.name }} ({{ typeCount(tp.id) }})
-              </option>
-            </select>
+            <AppSelect v-model="selectedTypeId" :options="pipelineSelectOptions" />
           </label>
           <button type="button" class="btn-new" @click="showForm && editingId === null ? closeForm() : openNew()">
             {{ showForm && editingId === null ? t('adminUsers.cancel') : '+ ' + t('adminCustomers.oppAdd') }}
@@ -326,21 +350,15 @@ const hasTypes = computed(() => typesStore.types.length > 0)
           </label>
           <label class="field">
             <span>{{ t('adminCustomers.oppType') }}</span>
-            <select v-model.number="form.typeId" :disabled="null !== editingId">
-              <option v-for="tp in usableTypes" :key="tp.id" :value="tp.id">{{ tp.name }}</option>
-            </select>
+            <AppSelect v-model="form.typeId" :options="typeSelectOptions" :disabled="null !== editingId" />
           </label>
           <label class="field">
             <span>{{ t('adminCustomers.oppStage') }}</span>
-            <select v-model.number="form.stageId">
-              <option v-for="s in formStages" :key="s.id" :value="s.id">{{ s.name }}</option>
-            </select>
+            <AppSelect v-model="form.stageId" :options="formStageSelectOptions" />
           </label>
           <label class="field">
             <span>{{ t('adminCustomers.oppCurrency') }}</span>
-            <select v-model="form.currency">
-              <option v-for="c in CURRENCIES" :key="c" :value="c">{{ c }}</option>
-            </select>
+            <AppSelect v-model="form.currency" :options="currencySelectOptions" />
           </label>
           <label class="field">
             <span>{{ t('adminCustomers.oppValue') }}</span>
@@ -353,12 +371,7 @@ const hasTypes = computed(() => typesStore.types.length > 0)
           </label>
           <label class="field">
             <span>{{ t('adminCustomers.oppContact') }}</span>
-            <select v-model.number="form.contactId">
-              <option :value="null">{{ t('adminCustomers.oppNoContact') }}</option>
-              <option v-for="ct in customer.contacts" :key="ct.id" :value="ct.id">
-                {{ `${ct.lastName} ${ct.firstName}`.trim() || ct.email }}
-              </option>
-            </select>
+            <AppSelect v-model="form.contactId" :options="contactSelectOptions" />
           </label>
           <label class="field field--wide">
             <span>{{ t('adminCustomers.notes') }}</span>
@@ -383,10 +396,7 @@ const hasTypes = computed(() => typesStore.types.length > 0)
             </div>
             <div v-for="(li, i) in form.lineItems" :key="i" class="line-row">
               <div class="line-product">
-                <select v-model.number="li.productId" @change="onPickProduct(li)">
-                  <option :value="null">{{ t('adminCustomers.oppCustomLine') }}</option>
-                  <option v-for="p in productsStore.products" :key="p.id" :value="p.id">{{ p.name }}</option>
-                </select>
+                <AppSelect v-model="li.productId" :options="productSelectOptions" @change="onPickProduct(li)" />
                 <!-- The name input is only for custom lines; for a catalogue
                      product the select already shows the name. -->
                 <input
@@ -485,9 +495,14 @@ const hasTypes = computed(() => typesStore.types.length > 0)
                 </td>
                 <td>{{ o.typeName }}</td>
                 <td>
-                  <select class="stage-select" :class="`outcome-${o.stageOutcome}`" :value="o.stageId" @change="onStageChange(o, $event)">
-                    <option v-for="s in stagesForType(o.typeId)" :key="s.id" :value="s.id">{{ s.name }}</option>
-                  </select>
+                  <div class="stage-select" :class="`outcome-${o.stageOutcome}`">
+                    <AppSelect
+                      :model-value="o.stageId"
+                      :options="stageSelectOptions(o.typeId)"
+                      compact
+                      @change="(v) => onStageChange(o, v)"
+                    />
+                  </div>
                 </td>
                 <td class="ta-right cell-value">{{ formatMoney(o.value, o.currency) }}</td>
                 <td>{{ o.ownerName || '—' }}</td>
@@ -1077,22 +1092,20 @@ const hasTypes = computed(() => typesStore.types.length > 0)
 }
 
 .stage-select {
-  padding: 0.35rem 0.5rem;
-  background: #f7f8fb;
-  border: 1px solid #d4dae6;
-  border-radius: 0.45rem;
-  color: var(--login-secondary, #0c1c40);
-  font-size: 0.85rem;
-  font-family: inherit;
+  display: inline-flex;
   max-width: 11rem;
 }
 
-.stage-select.outcome-won {
+.stage-select :deep(.app-select) {
+  width: 100%;
+}
+
+.stage-select.outcome-won :deep(.app-select-toggle) {
   border-color: #1c7a45;
   color: #1c7a45;
 }
 
-.stage-select.outcome-lost {
+.stage-select.outcome-lost :deep(.app-select-toggle) {
   border-color: #b3122e;
   color: #b3122e;
 }

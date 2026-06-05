@@ -14,6 +14,7 @@ import {
 } from '@/stores/customers'
 import { useProductsStore, productStatus } from '@/stores/products'
 import { useSuppliersStore } from '@/stores/suppliers'
+import AppSelect from '@/components/AppSelect.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 
@@ -95,6 +96,23 @@ const supplierOptions = computed(() => {
 
 const productOptions = computed(() =>
   products.value.filter((p) => 'active' === productStatus(p)).sort((a, b) => a.name.localeCompare(b.name, 'hu')),
+)
+
+// ── AppSelect option lists ───────────────────────────────────────────
+const cardSupplierSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: '—' },
+  ...supplierOptions.value.map((s) => ({ value: s.id, label: s.name })),
+])
+// No null entry: like the old disabled placeholder, a product can't be
+// "unpicked" — the empty state only shows via the placeholder prop.
+const orderProductSelectOptions = computed<{ value: number | null; label: string }[]>(() =>
+  productOptions.value.map((p) => ({ value: p.id, label: p.name })),
+)
+const orderStatusSelectOptions = computed<{ value: CardOrderStatus; label: string }[]>(() =>
+  CARD_ORDER_STATUSES.map((s) => ({ value: s, label: t('adminCustomers.orderStatus_' + s) })),
+)
+const currencySelectOptions = computed<{ value: string; label: string }[]>(() =>
+  ORDER_CURRENCIES.map((c) => ({ value: c, label: c })),
 )
 
 // ── Card create/edit form ────────────────────────────────────────────
@@ -220,6 +238,11 @@ function closeOrderForm(): void {
 
 async function onSubmitOrder(card: CustomerCard): Promise<void> {
   orderError.value = null
+  // The native select's `required` is gone with AppSelect — guard here.
+  if (null === orderForm.productId) {
+    orderError.value = t('adminCustomers.orderPickProduct')
+    return
+  }
   savingOrder.value = true
   const result =
     null === editingOrderId.value
@@ -239,8 +262,7 @@ async function onDeleteOrder(card: CustomerCard, order: CardOrder): Promise<void
   if (!result.ok) window.alert(result.error ?? t('admin.deleteFailed'))
 }
 
-async function onStatusChange(card: CustomerCard, order: CardOrder, event: Event): Promise<void> {
-  const status = (event.target as HTMLSelectElement).value as CardOrderStatus
+async function onStatusChange(card: CustomerCard, order: CardOrder, status: CardOrderStatus): Promise<void> {
   if (status === order.status) return
   const result = await store.moveCardOrderStatus(props.customer.id, card.id, order.id, status)
   if (!result.ok) window.alert(result.error ?? t('admin.saveFailed'))
@@ -316,10 +338,7 @@ async function onColumnDrop(status: CardOrderStatus): Promise<void> {
         </label>
         <label class="field">
           <span>{{ t('adminCustomers.cardSupplier') }}</span>
-          <select v-model.number="cardForm.supplierId">
-            <option :value="null">—</option>
-            <option v-for="s in supplierOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
-          </select>
+          <AppSelect v-model="cardForm.supplierId" :options="cardSupplierSelectOptions" />
         </label>
         <label class="field field--wide">
           <span>{{ t('adminCustomers.cardUniqueness') }}</span>
@@ -418,10 +437,12 @@ async function onColumnDrop(status: CardOrderStatus): Promise<void> {
       <form v-if="orderCardId === card.id" class="order-form" @submit.prevent="onSubmitOrder(card)">
         <label class="field">
           <span>{{ t('adminCustomers.orderProduct') }} *</span>
-          <select v-model.number="orderForm.productId" required @change="onOrderProductPicked">
-            <option :value="null" disabled>{{ t('adminCustomers.orderPickProduct') }}</option>
-            <option v-for="p in productOptions" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
+          <AppSelect
+            v-model="orderForm.productId"
+            :options="orderProductSelectOptions"
+            :placeholder="t('adminCustomers.orderPickProduct')"
+            @change="onOrderProductPicked"
+          />
         </label>
         <label class="field field--narrow">
           <span>{{ t('adminCustomers.orderQuantity') }} *</span>
@@ -437,9 +458,7 @@ async function onColumnDrop(status: CardOrderStatus): Promise<void> {
         </label>
         <label class="field field--narrow">
           <span>{{ t('adminCustomers.currency') }}</span>
-          <select v-model="orderForm.currency">
-            <option v-for="c in ORDER_CURRENCIES" :key="c" :value="c">{{ c }}</option>
-          </select>
+          <AppSelect v-model="orderForm.currency" :options="currencySelectOptions" />
         </label>
         <label class="field field--narrow">
           <span>{{ t('adminCustomers.orderDate') }} *</span>
@@ -447,11 +466,7 @@ async function onColumnDrop(status: CardOrderStatus): Promise<void> {
         </label>
         <label class="field field--narrow">
           <span>{{ t('adminCustomers.orderStatus') }}</span>
-          <select v-model="orderForm.status">
-            <option v-for="s in CARD_ORDER_STATUSES" :key="s" :value="s">
-              {{ t('adminCustomers.orderStatus_' + s) }}
-            </option>
-          </select>
+          <AppSelect v-model="orderForm.status" :options="orderStatusSelectOptions" />
         </label>
         <div class="order-form-actions">
           <button type="submit" class="btn-mini" :disabled="savingOrder">
@@ -502,17 +517,15 @@ async function onColumnDrop(status: CardOrderStatus): Promise<void> {
             </td>
             <td>{{ fmtDate(o.orderedAt) }}</td>
             <td>
-              <select
+              <AppSelect
                 class="status-select"
                 :class="`status-select--${o.status}`"
-                :value="o.status"
+                compact
+                :model-value="o.status"
+                :options="orderStatusSelectOptions"
                 :title="t('adminCustomers.orderToggleHint')"
-                @change="onStatusChange(card, o, $event)"
-              >
-                <option v-for="s in CARD_ORDER_STATUSES" :key="s" :value="s">
-                  {{ t('adminCustomers.orderStatus_' + s) }}
-                </option>
-              </select>
+                @change="(v) => onStatusChange(card, o, v)"
+              />
             </td>
             <td class="col-actions">
               <div class="row-actions">
@@ -778,47 +791,42 @@ async function onColumnDrop(status: CardOrderStatus): Promise<void> {
 }
 
 /* ── Workflow status colours ────────────────────────────────────────── */
-.status-select {
-  padding: 0.25rem 0.5rem;
+.status-select :deep(.app-select-toggle) {
   border: none;
-  border-radius: 0.45rem;
-  font-size: 0.78rem;
   font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
 }
 
-.status-select--quote {
+.status-select--quote :deep(.app-select-toggle) {
   background: #eef1f6;
   color: #545f71;
 }
 
-.status-select--ordered {
+.status-select--ordered :deep(.app-select-toggle) {
   background: #e7eefc;
   color: #2b59c3;
 }
 
-.status-select--proforma {
+.status-select--proforma :deep(.app-select-toggle) {
   background: #fdf3e6;
   color: #b06414;
 }
 
-.status-select--proforma_paid {
+.status-select--proforma_paid :deep(.app-select-toggle) {
   background: #f0e9fb;
   color: #7048b6;
 }
 
-.status-select--procurement {
+.status-select--procurement :deep(.app-select-toggle) {
   background: #fbe7f3;
   color: #b3127c;
 }
 
-.status-select--shipping {
+.status-select--shipping :deep(.app-select-toggle) {
   background: #e0f4f6;
   color: #0e7c86;
 }
 
-.status-select--paid {
+.status-select--paid :deep(.app-select-toggle) {
   background: #e3f6ec;
   color: #1c7a45;
 }

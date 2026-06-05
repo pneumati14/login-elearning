@@ -16,6 +16,7 @@ import {
 } from '@/stores/activities'
 import { useUsersStore } from '@/stores/users'
 import { useCustomersStore } from '@/stores/customers'
+import AppSelect from '@/components/AppSelect.vue'
 
 type StatusFilter = 'all' | 'open' | 'closed'
 
@@ -33,6 +34,16 @@ const userOptions = computed(() =>
 const customerOptions = computed(() =>
   [...customers.value].sort((a, b) => a.name.localeCompare(b.name, 'hu')),
 )
+
+// Option lists for the downward-opening AppSelect dropdowns.
+const assigneeSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminTasks.taskNoResponsible') },
+  ...userOptions.value.map((u) => ({ value: u.id, label: `${u.lastName} ${u.firstName} (${u.email})` })),
+])
+const customerSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminTasks.taskNoCustomer') },
+  ...customerOptions.value.map((c) => ({ value: c.id, label: c.name })),
+])
 
 const scope = ref<TaskScope>('mine')
 const statusFilter = ref<StatusFilter>('all')
@@ -223,19 +234,11 @@ onMounted(reload)
           </label>
           <label class="field">
             <span>{{ t('adminTasks.taskResponsible') }}</span>
-            <select v-model.number="taskForm.assigneeId">
-              <option :value="null">{{ t('adminTasks.taskNoResponsible') }}</option>
-              <option v-for="u in userOptions" :key="u.id" :value="u.id">
-                {{ u.lastName }} {{ u.firstName }} ({{ u.email }})
-              </option>
-            </select>
+            <AppSelect v-model="taskForm.assigneeId" :options="assigneeSelectOptions" />
           </label>
           <label class="field field--wide">
             <span>{{ t('adminTasks.taskCustomer') }}</span>
-            <select v-model.number="taskForm.customerId">
-              <option :value="null">{{ t('adminTasks.taskNoCustomer') }}</option>
-              <option v-for="c in customerOptions" :key="c.id" :value="c.id">{{ c.name }}</option>
-            </select>
+            <AppSelect v-model="taskForm.customerId" :options="customerSelectOptions" />
           </label>
           <label class="field field--wide">
             <span>{{ t('adminCustomers.notes') }}</span>

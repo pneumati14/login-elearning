@@ -14,6 +14,7 @@ import {
   type ActivityType,
 } from '@/stores/activities'
 import { useOpportunitiesStore } from '@/stores/opportunities'
+import AppSelect from '@/components/AppSelect.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 
@@ -46,6 +47,22 @@ const activities = computed<Activity[]>(() => {
 })
 
 const opportunities = computed(() => opportunitiesStore.list(props.customer.id))
+
+// ── AppSelect option lists ───────────────────────────────────────────
+const typeSelectOptions = computed<{ value: ActivityType; label: string }[]>(() =>
+  ACTIVITY_TYPES.map((ty) => ({ value: ty, label: typeLabel(ty) })),
+)
+const contactSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminCustomers.oppNoContact') },
+  ...props.customer.contacts.map((ct) => ({
+    value: ct.id,
+    label: `${ct.lastName} ${ct.firstName}`.trim() || ct.email || '',
+  })),
+])
+const opportunitySelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminCustomers.oppNoContact') },
+  ...opportunities.value.map((o) => ({ value: o.id, label: o.title })),
+])
 
 async function load(): Promise<void> {
   await store.fetchActivities(props.customer.id)
@@ -156,9 +173,7 @@ function contactName(a: Activity): string {
       <div class="act-form-grid">
         <label class="field">
           <span>{{ t('adminCustomers.actTypeLabel') }}</span>
-          <select v-model="form.type">
-            <option v-for="ty in ACTIVITY_TYPES" :key="ty" :value="ty">{{ typeLabel(ty) }}</option>
-          </select>
+          <AppSelect v-model="form.type" :options="typeSelectOptions" />
         </label>
         <label class="field">
           <span>{{ form.type === 'task' ? t('adminCustomers.actDueAt') : t('adminCustomers.actOccurredAt') }}</span>
@@ -170,19 +185,11 @@ function contactName(a: Activity): string {
         </label>
         <label class="field">
           <span>{{ t('adminCustomers.oppContact') }}</span>
-          <select v-model.number="form.contactId">
-            <option :value="null">{{ t('adminCustomers.oppNoContact') }}</option>
-            <option v-for="ct in customer.contacts" :key="ct.id" :value="ct.id">
-              {{ `${ct.lastName} ${ct.firstName}`.trim() || ct.email }}
-            </option>
-          </select>
+          <AppSelect v-model="form.contactId" :options="contactSelectOptions" />
         </label>
         <label v-if="null === fixedOpportunityId" class="field">
           <span>{{ t('adminCustomers.tabOpportunities') }}</span>
-          <select v-model.number="form.opportunityId">
-            <option :value="null">{{ t('adminCustomers.oppNoContact') }}</option>
-            <option v-for="o in opportunities" :key="o.id" :value="o.id">{{ o.title }}</option>
-          </select>
+          <AppSelect v-model="form.opportunityId" :options="opportunitySelectOptions" />
         </label>
         <label class="field field--wide">
           <span>{{ t('adminCustomers.notes') }}</span>

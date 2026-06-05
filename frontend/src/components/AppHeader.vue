@@ -8,14 +8,12 @@ import LanguageSwitcher from './LanguageSwitcher.vue'
 interface MenuItem {
   label: string
   icon: string
-  type: 'panel' | 'link' | 'route'
-  child?: string
+  type: 'submenu' | 'link' | 'route'
+  /** Stable id for tracking which submenu is expanded. */
+  key?: string
+  children?: MenuItem[]
   href?: string
   to?: string
-}
-interface Panel {
-  parent?: string
-  items: MenuItem[]
 }
 
 const auth = useAuthStore()
@@ -24,23 +22,19 @@ const { t } = useI18n()
 
 // The hamburger menu mirrors loginautonom.com, with E-Learning and the
 // admin-only Admin submenu added. Profile / language / logout live in
-// the separate profile dropdown, not here.
-const panels = computed<Record<string, Panel>>(() => {
-  const rootItems: MenuItem[] = [
+// the separate profile dropdown, not here. Submenus expand IN PLACE,
+// below their parent item (accordion) — the users found the original
+// site's panel-swap (where the sublist restarts at the top of the
+// dropdown) disorienting.
+const menuItems = computed<MenuItem[]>(() => {
+  const items: MenuItem[] = [
     { label: t('nav.elearning'), icon: 'e-learning.svg', type: 'route', to: '/e-learning' },
-    { label: t('nav.software'), icon: 'software.svg', type: 'panel', child: 'panel-6' },
-    { label: t('nav.teamCareer'), icon: 'team-career.svg', type: 'route', to: '/teams-and-career' },
-    { label: t('nav.research'), icon: 'download-research.svg', type: 'route', to: '/research' },
-    { label: t('nav.connect'), icon: 'connect.svg', type: 'route', to: '/book-a-demo' },
-    { label: t('nav.share'), icon: 'share.svg', type: 'link', href: 'https://www.linkedin.com/company/login-autonom/' },
-    { label: t('nav.followUs'), icon: 'follow-us.svg', type: 'panel', child: 'panel-16' },
-  ]
-
-  const result: Record<string, Panel> = {
-    'panel-1': { items: rootItems },
-    'panel-6': {
-      parent: 'panel-1',
-      items: [
+    {
+      label: t('nav.software'),
+      icon: 'software.svg',
+      type: 'submenu',
+      key: 'software',
+      children: [
         { label: t('nav.bookDemo'), icon: 'book-a-demo.svg', type: 'route', to: '/book-a-demo' },
         { label: 'HR Base', icon: 'hr-base.svg', type: 'route', to: '/hrbase' },
         { label: 'Cplatform', icon: 'cplatform.svg', type: 'route', to: '/cplatform' },
@@ -54,21 +48,27 @@ const panels = computed<Record<string, Panel>>(() => {
         { label: 'AI', icon: 'ai_module.svg', type: 'route', to: '/ai' },
       ],
     },
-    'panel-16': {
-      parent: 'panel-1',
-      items: [
+    { label: t('nav.teamCareer'), icon: 'team-career.svg', type: 'route', to: '/teams-and-career' },
+    { label: t('nav.research'), icon: 'download-research.svg', type: 'route', to: '/research' },
+    { label: t('nav.connect'), icon: 'connect.svg', type: 'route', to: '/book-a-demo' },
+    { label: t('nav.share'), icon: 'share.svg', type: 'link', href: 'https://www.linkedin.com/company/login-autonom/' },
+    {
+      label: t('nav.followUs'),
+      icon: 'follow-us.svg',
+      type: 'submenu',
+      key: 'follow',
+      children: [
         { label: 'Linkedin', icon: 'linkedin.svg', type: 'link', href: 'https://www.linkedin.com/company/login-autonom/' },
         { label: 'Facebook', icon: 'facebook.svg', type: 'link', href: 'https://www.facebook.com/HRinformatika' },
       ],
     },
-  }
+  ]
 
   // The CRM submenu is shown to anyone with CRM access (salesperson,
   // sales manager or admin). Customers and tasks are open to all of them;
   // the catalogue config (opportunity types, products) is admins only.
   // Salespeople and sales managers see no other admin menu.
   if (auth.hasCrmAccess) {
-    rootItems.push({ label: t('nav.crm'), icon: 'team-career.svg', type: 'panel', child: 'panel-crm' })
     const crmItems: MenuItem[] = [
       { label: t('nav.adminCustomers'), icon: 'team-career.svg', type: 'route', to: '/admin/customers' },
       { label: t('nav.adminTasks'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/tasks' },
@@ -84,30 +84,33 @@ const panels = computed<Record<string, Panel>>(() => {
         { label: t('nav.adminFulfillmentTypes'), icon: 'icon-app.svg', type: 'route', to: '/admin/fulfillment-types' },
       )
     }
-    result['panel-crm'] = { parent: 'panel-1', items: crmItems }
+    items.push({ label: t('nav.crm'), icon: 'team-career.svg', type: 'submenu', key: 'crm', children: crmItems })
   }
 
   // The Admin submenu (non-CRM administration) is only built — and only
   // shown — for administrators.
   if (auth.isAdmin) {
-    rootItems.push({ label: t('nav.admin'), icon: 'about-us.svg', type: 'panel', child: 'panel-admin' })
-    result['panel-admin'] = {
-      parent: 'panel-1',
-      items: [
+    items.push({
+      label: t('nav.admin'),
+      icon: 'about-us.svg',
+      type: 'submenu',
+      key: 'admin',
+      children: [
         { label: t('nav.adminCourses'), icon: 'competency.svg', type: 'route', to: '/admin/courses' },
         { label: t('nav.adminUsers'), icon: 'team-career.svg', type: 'route', to: '/admin/users' },
         { label: t('nav.adminPublications'), icon: 'publications.svg', type: 'route', to: '/admin/publications' },
         { label: t('nav.adminPositions'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/positions' },
       ],
-    }
+    })
   }
 
-  return result
+  return items
 })
 
 // ── Hamburger menu state ──────────────────────────────────────────
 const menuOpen = ref(false)
-const activePanel = ref('panel-1')
+// Key of the submenu currently expanded in place (accordion: one at a time).
+const expandedKey = ref<string | null>(null)
 const root = ref<HTMLElement | null>(null)
 
 // ── High Sensitivity Solutions dropdown ───────────────────────────
@@ -136,7 +139,7 @@ const avatarUrl = computed(() => auth.user?.avatarUrl ?? null)
 function toggleMenu() {
   menuOpen.value = !menuOpen.value
   if (menuOpen.value) {
-    activePanel.value = 'panel-1'
+    expandedKey.value = null
     profileOpen.value = false
     hssOpen.value = false
   }
@@ -144,11 +147,8 @@ function toggleMenu() {
 function closeMenu() {
   menuOpen.value = false
 }
-function openPanel(id: string) {
-  activePanel.value = id
-}
-function goBack(parent?: string) {
-  if (parent) activePanel.value = parent
+function toggleSubmenu(key: string) {
+  expandedKey.value = expandedKey.value === key ? null : key
 }
 function toggleProfile() {
   profileOpen.value = !profileOpen.value
@@ -215,60 +215,72 @@ const iconUrl = (name: string) => `/frontend-files/images/menu-images/${name}`
               </a>
 
               <div class="dropdown-menu" :class="{ show: menuOpen }">
-                <div
-                  v-for="(panel, id) in panels"
-                  :id="id"
-                  :key="id"
-                  class="panel"
-                  :class="{ active: activePanel === id }"
-                >
-                  <div class="panel-body">
-                    <template v-for="(item, i) in panel.items" :key="i">
-                      <span
-                        v-if="item.type === 'panel'"
-                        class="dropdown-item"
-                        @click="openPanel(item.child!)"
-                      >
-                        <span class="icon"><img :src="iconUrl(item.icon)" class="img-fluid" alt="" /></span>
-                        {{ item.label }}
-                        <svg class="icon-right" viewBox="0 0 16 16">
-                          <use xlink:href="/frontend-files/images/icons.svg#caret-circle-right"></use>
-                        </svg>
-                      </span>
+                <template v-for="(item, i) in menuItems" :key="item.key ?? i">
+                  <!-- Submenu parent: expands its children in place, below itself. -->
+                  <template v-if="item.type === 'submenu'">
+                    <span
+                      class="dropdown-item has-sub"
+                      :class="{ expanded: expandedKey === item.key }"
+                      role="button"
+                      :aria-expanded="expandedKey === item.key"
+                      @click="toggleSubmenu(item.key!)"
+                    >
+                      <span class="icon"><img :src="iconUrl(item.icon)" class="img-fluid" alt="" /></span>
+                      {{ item.label }}
+                      <svg class="icon-right" viewBox="0 0 16 16">
+                        <use xlink:href="/frontend-files/images/icons.svg#caret-circle-right"></use>
+                      </svg>
+                    </span>
 
-                      <RouterLink
-                        v-else-if="item.type === 'route'"
-                        class="dropdown-item"
-                        :to="item.to!"
-                        @click="closeMenu"
-                      >
-                        <span class="icon"><img :src="iconUrl(item.icon)" class="img-fluid" alt="" /></span>
-                        {{ item.label }}
-                      </RouterLink>
+                    <div v-if="expandedKey === item.key" class="submenu">
+                      <template v-for="(child, j) in item.children" :key="j">
+                        <RouterLink
+                          v-if="child.type === 'route'"
+                          class="dropdown-item"
+                          :to="child.to!"
+                          @click="closeMenu"
+                        >
+                          <span class="icon"><img :src="iconUrl(child.icon)" class="img-fluid" alt="" /></span>
+                          {{ child.label }}
+                        </RouterLink>
 
-                      <a
-                        v-else
-                        class="dropdown-item"
-                        :href="item.href"
-                        target="_blank"
-                        rel="noopener"
-                        @click="closeMenu"
-                      >
-                        <span class="icon"><img :src="iconUrl(item.icon)" class="img-fluid" alt="" /></span>
-                        {{ item.label }}
-                      </a>
-                    </template>
-                  </div>
+                        <a
+                          v-else
+                          class="dropdown-item"
+                          :href="child.href"
+                          target="_blank"
+                          rel="noopener"
+                          @click="closeMenu"
+                        >
+                          <span class="icon"><img :src="iconUrl(child.icon)" class="img-fluid" alt="" /></span>
+                          {{ child.label }}
+                        </a>
+                      </template>
+                    </div>
+                  </template>
 
-                  <div v-if="panel.parent" class="panel-footer">
-                    <button class="dropdown-item btn-back" type="button" @click="goBack(panel.parent)">
-                      <span class="icon">
-                        <svg viewBox="0 0 16 16"><use xlink:href="/frontend-files/images/icons.svg#arrow-left"></use></svg>
-                      </span>
-                      {{ t('nav.back') }}
-                    </button>
-                  </div>
-                </div>
+                  <RouterLink
+                    v-else-if="item.type === 'route'"
+                    class="dropdown-item"
+                    :to="item.to!"
+                    @click="closeMenu"
+                  >
+                    <span class="icon"><img :src="iconUrl(item.icon)" class="img-fluid" alt="" /></span>
+                    {{ item.label }}
+                  </RouterLink>
+
+                  <a
+                    v-else
+                    class="dropdown-item"
+                    :href="item.href"
+                    target="_blank"
+                    rel="noopener"
+                    @click="closeMenu"
+                  >
+                    <span class="icon"><img :src="iconUrl(item.icon)" class="img-fluid" alt="" /></span>
+                    {{ item.label }}
+                  </a>
+                </template>
               </div>
             </div>
           </div>
@@ -387,15 +399,76 @@ const iconUrl = (name: string) => `/frontend-files/images/menu-images/${name}`
 }
 
 /* The dropdown panel is positioned without Popper, so pin it under the toggler.
-   The hamburger lives on the left, so the panel opens from the left edge. */
+   The hamburger lives on the left, so the panel opens from the left edge.
+   `bottom: auto` guards against any global rule flipping the menu upward —
+   every menu in the header must drop DOWN, never up. */
 .top-menu .dropdown {
   position: relative;
 }
 .top-menu .dropdown-menu {
   top: 100%;
+  bottom: auto;
   left: 0;
   right: auto;
   margin-top: 0;
+  /* The accordion can grow taller than the viewport (e.g. Software with
+     its 11 children) — cap it and scroll inside, like the old .panel did. */
+  max-height: clamp(100px, calc(100dvh - var(--header-height, 63px) - 4rem), 800px);
+  overflow-y: auto;
+}
+.top-menu .dropdown-menu.show {
+  animation: menu-drop-down 0.16s ease-out;
+  transform-origin: top center;
+}
+
+/* The marketing CSS only adds spacing between ADJACENT .dropdown-item
+   siblings; the inline .submenu wrapper breaks that chain, so restore
+   the 5px rhythm around it ourselves. */
+.top-menu .submenu,
+.top-menu .submenu + .dropdown-item {
+  margin-top: 5px;
+}
+
+/* ── In-place submenu (accordion) ─────────────────────────────────
+   Children open BELOW their parent item, indented and marked with a
+   guide line, instead of swapping the whole panel. */
+.top-menu .submenu {
+  margin-left: 1.6rem;
+  padding-left: 0.8rem;
+  border-left: 2px solid rgba(12, 28, 64, 0.15);
+  animation: submenu-open 0.18s ease-out;
+  transform-origin: top center;
+}
+
+@keyframes submenu-open {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The caret-circle arrow turns to point down while its submenu is open. */
+.top-menu .dropdown-item.has-sub .icon-right {
+  transition: transform 0.18s ease;
+}
+.top-menu .dropdown-item.has-sub.expanded .icon-right {
+  transform: rotate(90deg);
+}
+
+/* Shared "drop down from the toggler" entrance used by all header menus. */
+@keyframes menu-drop-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .top-menu .dropdown-item {
   padding-right: 1rem;
@@ -477,7 +550,10 @@ const iconUrl = (name: string) => `/frontend-files/images/menu-images/${name}`
 .hss-menu {
   position: absolute;
   top: calc(100% + 0.6rem);
+  bottom: auto;
   left: 0;
+  animation: menu-drop-down 0.16s ease-out;
+  transform-origin: top center;
   min-width: 210px;
   padding: 0.5rem;
   background: #fff;
@@ -588,7 +664,10 @@ const iconUrl = (name: string) => `/frontend-files/images/menu-images/${name}`
 .profile-menu {
   position: absolute;
   top: calc(100% + 0.55rem);
+  bottom: auto;
   right: 0;
+  animation: menu-drop-down 0.16s ease-out;
+  transform-origin: top center;
   width: 256px;
   padding: 0.6rem;
   background: #fff;

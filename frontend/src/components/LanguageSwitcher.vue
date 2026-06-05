@@ -124,13 +124,27 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocPointerDown
 .lang-menu {
   position: absolute;
   top: calc(100% + 0.5rem);
+  bottom: auto;
   right: 0;
+  animation: menu-drop-down 0.16s ease-out;
+  transform-origin: top center;
   min-width: 150px;
   padding: 0.4rem;
   background: #fff;
   border-radius: 0.7rem;
   box-shadow: 0 16px 38px rgba(12, 28, 64, 0.2);
   z-index: 1100;
+}
+
+@keyframes menu-drop-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .lang-option {

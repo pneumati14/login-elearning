@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import AppSelect from '@/components/AppSelect.vue'
 
 const { t } = useI18n()
 
@@ -31,6 +32,16 @@ const form = reactive({
   agree: false,
   accept: false,
 })
+
+// Options for the downward-opening AppSelect dropdown (labels unchanged).
+const companySizeOptions = computed<{ value: string; label: string }[]>(() => [
+  { value: '', label: t('bookDemo.selectOption') },
+  { value: '5', label: '5' },
+  { value: '10', label: '10' },
+  { value: '15', label: '15' },
+  { value: '20', label: '20' },
+  { value: '20+', label: '20+' },
+])
 
 const submitted = ref(false)
 const error = ref<string | null>(null)
@@ -117,16 +128,15 @@ function onSubmit() {
                   <input id="booking_email" v-model="form.email" type="email" class="form-control" :placeholder="t('bookDemo.email')" />
                   <label for="booking_email">{{ t('bookDemo.email') }}</label>
                 </div>
-                <div class="form-floating mb-3">
-                  <select id="booking_company_size" v-model="form.companySize" class="form-select">
-                    <option value="">{{ t('bookDemo.selectOption') }}</option>
-                    <option value="5">5</option>
-                    <option value="10">10</option>
-                    <option value="15">15</option>
-                    <option value="20">20</option>
-                    <option value="20+">20+</option>
-                  </select>
-                  <label for="booking_company_size">{{ t('bookDemo.companySize') }}</label>
+                <div class="mb-3">
+                  <label class="company-size-label" for="booking_company_size">{{ t('bookDemo.companySize') }}</label>
+                  <AppSelect
+                    id="booking_company_size"
+                    v-model="form.companySize"
+                    class="form-select"
+                    :options="companySizeOptions"
+                    :placeholder="t('bookDemo.selectOption')"
+                  />
                 </div>
                 <div class="form-floating mb-3">
                   <input id="booking_phone" v-model="form.phone" type="text" class="form-control" :placeholder="t('bookDemo.phone')" />
@@ -172,3 +182,26 @@ function onSubmit() {
     </section>
   </div>
 </template>
+
+<style scoped>
+/* The public booking form uses white inputs; carry that look onto the
+   AppSelect toggle (its scoped defaults are the grey admin look). */
+.company-size-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.95rem;
+}
+
+.form-select.app-select {
+  display: flex;
+  width: 100%;
+}
+
+.form-select :deep(.app-select-toggle) {
+  width: 100%;
+  background: #fff;
+  border-color: #ced4da;
+  padding: 0.75rem 0.75rem;
+  font-size: 1rem;
+}
+</style>

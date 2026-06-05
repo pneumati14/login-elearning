@@ -16,6 +16,7 @@ import {
 import { useUsersStore } from '@/stores/users'
 import { useAuthStore } from '@/stores/auth'
 import AddressFieldset from '@/components/AddressFieldset.vue'
+import AppSelect from '@/components/AppSelect.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 
@@ -31,6 +32,16 @@ const { users } = storeToRefs(usersStore)
 const userOptions = computed(() =>
   [...users.value].sort((a, b) => (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName, 'hu')),
 )
+
+// ── AppSelect option lists ───────────────────────────────────────────
+const statusSelectOptions = computed<{ value: string; label: string }[]>(() => [
+  { value: 'potential', label: t('adminCustomers.status_potential') },
+  { value: 'existing', label: t('adminCustomers.status_existing') },
+])
+const salesPersonSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminCustomers.salesPickPerson') },
+  ...userOptions.value.map((u) => ({ value: u.id, label: `${u.lastName} ${u.firstName} (${u.email})` })),
+])
 
 // ── Customer fields ──────────────────────────────────────────────────
 const editForm = reactive<CustomerFields>(emptyCustomerFields())
@@ -188,10 +199,7 @@ function formatAssignmentPeriod(a: SalesAssignment): string {
       </label>
       <label class="field">
         <span>{{ t('adminCustomers.status') }}</span>
-        <select v-model="editForm.status">
-          <option value="potential">{{ t('adminCustomers.status_potential') }}</option>
-          <option value="existing">{{ t('adminCustomers.status_existing') }}</option>
-        </select>
+        <AppSelect v-model="editForm.status" :options="statusSelectOptions" />
       </label>
       <label class="field">
         <span>{{ t('adminCustomers.website') }}</span>
@@ -291,12 +299,7 @@ function formatAssignmentPeriod(a: SalesAssignment): string {
             <div class="sales-form-grid">
               <label class="field">
                 <span>{{ t('adminCustomers.salesPerson') }}</span>
-                <select v-model.number="editAssignment.userId">
-                  <option :value="null">{{ t('adminCustomers.salesPickPerson') }}</option>
-                  <option v-for="u in userOptions" :key="u.id" :value="u.id">
-                    {{ u.lastName }} {{ u.firstName }} ({{ u.email }})
-                  </option>
-                </select>
+                <AppSelect v-model="editAssignment.userId" :options="salesPersonSelectOptions" />
               </label>
               <label class="field">
                 <span>{{ t('adminCustomers.validFrom') }}</span>
@@ -332,12 +335,7 @@ function formatAssignmentPeriod(a: SalesAssignment): string {
         <div class="sales-form-grid">
           <label class="field">
             <span>{{ t('adminCustomers.salesPerson') }}</span>
-            <select v-model.number="newAssignment.userId">
-              <option :value="null">{{ t('adminCustomers.salesPickPerson') }}</option>
-              <option v-for="u in userOptions" :key="u.id" :value="u.id">
-                {{ u.lastName }} {{ u.firstName }} ({{ u.email }})
-              </option>
-            </select>
+            <AppSelect v-model="newAssignment.userId" :options="salesPersonSelectOptions" />
           </label>
           <label class="field">
             <span>{{ t('adminCustomers.validFrom') }}</span>

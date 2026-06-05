@@ -7,6 +7,7 @@ import ReportChart from '@/components/ReportChart.vue'
 import { useReportsStore, type ReportTotal, type ReportType } from '@/stores/reports'
 import { useOpportunityTypesStore } from '@/stores/opportunityTypes'
 import { useUsersStore } from '@/stores/users'
+import AppSelect from '@/components/AppSelect.vue'
 
 const { t, locale } = useI18n()
 const store = useReportsStore()
@@ -39,6 +40,23 @@ const userOptions = computed(() =>
   users.value
     .filter((u) => 'user' !== u.role)
     .sort((a, b) => (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName, 'hu')),
+)
+
+// ── Option lists for the downward-opening AppSelect dropdowns ────────────
+const typeSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminReports.filterAll') },
+  ...types.value.map((tp) => ({ value: tp.id, label: tp.name })),
+])
+const userSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminReports.filterAll') },
+  ...userOptions.value.map((u) => ({ value: u.id, label: `${u.lastName} ${u.firstName}` })),
+])
+const currencySelectOptions: { value: string; label: string }[] = CURRENCIES.map((c) => ({
+  value: c,
+  label: c,
+}))
+const horizonSelectOptions = computed<{ value: number; label: string }[]>(() =>
+  HORIZONS.map((h) => ({ value: h, label: t('adminReports.horizonOption', { n: h }) })),
 )
 
 // Stage chips: only meaningful when a single pipeline is selected.
@@ -348,31 +366,19 @@ const ownersHeight = computed(() => `${Math.max(220, 52 * (report.value?.owners.
         <div class="rep-filters">
           <label class="rep-filter">
             <span>{{ t('adminReports.filterType') }}</span>
-            <select v-model.number="filterTypeId">
-              <option :value="null">{{ t('adminReports.filterAll') }}</option>
-              <option v-for="tp in types" :key="tp.id" :value="tp.id">{{ tp.name }}</option>
-            </select>
+            <AppSelect v-model="filterTypeId" :options="typeSelectOptions" />
           </label>
           <label class="rep-filter">
             <span>{{ t('adminReports.filterUser') }}</span>
-            <select v-model.number="filterUserId">
-              <option :value="null">{{ t('adminReports.filterAll') }}</option>
-              <option v-for="u in userOptions" :key="u.id" :value="u.id">
-                {{ u.lastName }} {{ u.firstName }}
-              </option>
-            </select>
+            <AppSelect v-model="filterUserId" :options="userSelectOptions" />
           </label>
           <label class="rep-filter">
             <span>{{ t('adminReports.filterCurrency') }}</span>
-            <select v-model="filterCurrency">
-              <option v-for="c in CURRENCIES" :key="c" :value="c">{{ c }}</option>
-            </select>
+            <AppSelect v-model="filterCurrency" :options="currencySelectOptions" />
           </label>
           <label class="rep-filter">
             <span>{{ t('adminReports.filterHorizon') }}</span>
-            <select v-model.number="filterHorizon">
-              <option v-for="h in HORIZONS" :key="h" :value="h">{{ t('adminReports.horizonOption', { n: h }) }}</option>
-            </select>
+            <AppSelect v-model="filterHorizon" :options="horizonSelectOptions" />
           </label>
         </div>
 
@@ -638,6 +644,10 @@ const ownersHeight = computed(() => `${Math.max(220, 52 * (report.value?.owners.
   outline: 2px solid var(--login-primary, #ed2044);
   outline-offset: -1px;
   background: #fff;
+}
+
+.rep-filter :deep(.app-select-toggle) {
+  min-width: 170px;
 }
 
 .stage-chips {
