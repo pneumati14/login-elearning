@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useBillingStore, type BillingItem, type BillingItemFields } from '@/stores/billing'
 import { useCustomersStore } from '@/stores/customers'
+import { useMoneyFormat } from '@/stores/currencySettings'
 import AppSelect from '@/components/AppSelect.vue'
 
 const { t, locale } = useI18n()
@@ -50,13 +51,7 @@ const pendingTotals = computed(() => {
 })
 
 // ── Formatting ───────────────────────────────────────────────────────
-function fmtMoney(value: string | number, currency: string): string {
-  return new Intl.NumberFormat(locale.value, {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(Number(value))
-}
+const fmtMoney = useMoneyFormat()
 
 function fmtNumber(value: string): string {
   return new Intl.NumberFormat(locale.value, { maximumFractionDigits: 2 }).format(Number(value))

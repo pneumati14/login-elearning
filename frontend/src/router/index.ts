@@ -138,6 +138,18 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresAdmin: true },
     },
     {
+      path: '/admin/fee-titles',
+      name: 'admin-fee-titles',
+      component: () => import('../views/AdminFeeTitlesView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/currencies',
+      name: 'admin-currencies',
+      component: () => import('../views/AdminCurrenciesView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
       path: '/admin/opportunity-types',
       name: 'admin-opportunity-types',
       component: () => import('../views/AdminOpportunityTypesView.vue'),

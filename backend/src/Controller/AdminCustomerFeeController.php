@@ -107,6 +107,84 @@ final class AdminCustomerFeeController extends AbstractController
      * { "unitAmount"?, "quantity"?, "effectiveFrom" } (at least one of
      * unitAmount/quantity).
      */
+    /**
+     * Raise the WHOLE monthly fee by a percentage: every item active on
+     * the effective date is closed the day before and re-opened at the
+     * raised price (per-head items raise their unit price). History is
+     * kept the same way the per-item raise did.
+     * Body: { "percent": 8, "effectiveFrom": "YYYY-MM-DD" }.
+     */
+    #[Route('/raise-all', name: 'raise_all', methods: ['POST'])]
+    public function raiseAll(int $customerId, Request $request): JsonResponse
+    {
+        $customer = $this->findCustomer($customerId);
+        if (null === $customer) {
+            return $this->json(['error' => 'Az ügyfél nem található.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $payload = $this->decode($request);
+        if (null === $payload) {
+            return $this->json(['error' => 'Érvénytelen kérés.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $percent = $payload['percent'] ?? null;
+        if (!is_numeric($percent) || (float) $percent <= -100 || (float) $percent > 1000 || 0.0 === (float) $percent) {
+            return $this->json(['error' => 'Az emelés mértéke −100 és 1000 közötti, nullától eltérő szám lehet.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        $factor = 1 + ((float) $percent) / 100;
+
+        $effectiveFrom = $this->parseDate($payload['effectiveFrom'] ?? null);
+        if (!$effectiveFrom instanceof \DateTimeImmutable) {
+            return $this->json(['error' => 'A hatályba lépés dátuma kötelező (YYYY-MM-DD).'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        // Items already starting on/after the effective date carry their own
+        // future pricing — only items active on the date AND started before
+        // it are rolled over.
+        $targets = [];
+        foreach ($customer->getFeeItems() as $item) {
+            if (!$item->isActiveOn($effectiveFrom)) {
+                continue;
+            }
+            if (null !== $item->getValidFrom() && $item->getValidFrom() >= $effectiveFrom) {
+                continue;
+            }
+            $targets[] = $item;
+        }
+        if ([] === $targets) {
+            return $this->json(['error' => 'A megadott napon nincs emelhető aktív tétel.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        foreach ($targets as $item) {
+            $successor = new CustomerFeeItem();
+            $successor
+                ->setCustomer($customer)
+                ->setProduct($item->getProduct())
+                ->setName($item->getName())
+                ->setCurrency($item->getCurrency())
+                ->setNotes($item->getNotes())
+                ->setValidFrom($effectiveFrom)
+                ->setValidUntil($item->getValidUntil());
+            if ($item->isPerHead()) {
+                $successor
+                    ->setIsPerHead(true)
+                    ->setUnitAmount(number_format((float) $item->getUnitAmount() * $factor, 2, '.', ''))
+                    ->setQuantity($item->getQuantity());
+                $successor->recomputePerHeadAmount();
+            } else {
+                $successor->setAmount(number_format((float) $item->getAmount() * $factor, 2, '.', ''));
+            }
+            $item->setValidUntil($effectiveFrom->modify('-1 day'));
+            $this->entityManager->persist($successor);
+        }
+
+        $customer->touch();
+        $this->entityManager->flush();
+        $this->entityManager->refresh($customer);
+
+        return $this->json($this->serializeFees($customer), JsonResponse::HTTP_CREATED);
+    }
+
     #[Route('/{id<\d+>}/raise', name: 'raise', methods: ['POST'])]
     public function raise(int $customerId, int $id, Request $request): JsonResponse
     {
@@ -278,9 +356,14 @@ final class AdminCustomerFeeController extends AbstractController
      */
     private function serializeFees(Customer $customer): array
     {
+        $today = new \DateTimeImmutable('today');
         $totals = [];
-        foreach ($customer->monthlyFeeTotals(new \DateTimeImmutable('today')) as $currency => $amount) {
+        foreach ($customer->monthlyFeeTotals($today) as $currency => $amount) {
             $totals[] = ['currency' => $currency, 'amount' => $amount];
+        }
+        $grossTotals = [];
+        foreach ($customer->monthlyFeeTotals($today, false) as $currency => $amount) {
+            $grossTotals[] = ['currency' => $currency, 'amount' => $amount];
         }
 
         return [
@@ -302,6 +385,7 @@ final class AdminCustomerFeeController extends AbstractController
                 $customer->getFeeItems()->toArray(),
             ),
             'monthlyFeeTotals' => $totals,
+            'monthlyFeeGrossTotals' => $grossTotals,
         ];
     }
 

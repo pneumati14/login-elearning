@@ -11,12 +11,14 @@ import {
   type CustomerFields,
   type CustomerStatus,
 } from '@/stores/customers'
+import { useMoneyFormat } from '@/stores/currencySettings'
 import AddressFieldset from '@/components/AddressFieldset.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import IconView from '@/components/icons/IconView.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
+const fmtMoney = useMoneyFormat()
 
 const statusSelectOptions = computed<{ value: CustomerStatus; label: string }[]>(() => [
   { value: 'potential', label: t('adminCustomers.status_potential') },
@@ -124,11 +126,7 @@ function feeSortValue(c: Customer): number {
 function feeLines(c: Customer): string[] {
   if ('existing' !== c.status || 0 === c.monthlyFeeTotals.length) return ['—']
   return c.monthlyFeeTotals.map((tt) =>
-    new Intl.NumberFormat(locale.value, {
-      style: 'currency',
-      currency: tt.currency,
-      maximumFractionDigits: 0,
-    }).format(Number(tt.amount)),
+    fmtMoney(tt.amount, tt.currency),
   )
 }
 

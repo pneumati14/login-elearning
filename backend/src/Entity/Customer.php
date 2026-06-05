@@ -23,6 +23,17 @@ class Customer
     public const STATUSES = [self::STATUS_EXISTING, self::STATUS_POTENTIAL];
 
     public const CURRENCIES = ['HUF', 'EUR', 'USD'];
+
+    public const BILLING_PERIOD_MONTHLY = 'monthly';
+    public const BILLING_PERIOD_QUARTERLY = 'quarterly';
+    public const BILLING_PERIOD_SEMIANNUAL = 'semiannual';
+    public const BILLING_PERIOD_YEARLY = 'yearly';
+    public const BILLING_PERIODS = [
+        self::BILLING_PERIOD_MONTHLY,
+        self::BILLING_PERIOD_QUARTERLY,
+        self::BILLING_PERIOD_SEMIANNUAL,
+        self::BILLING_PERIOD_YEARLY,
+    ];
     public const DEFAULT_CURRENCY = 'HUF';
 
     #[ORM\Id]
@@ -113,6 +124,38 @@ class Customer
     #[ORM\OneToMany(mappedBy: 'customer', targetEntity: Activity::class, cascade: ['remove'], orphanRemoval: true)]
     private Collection $activities;
 
+    // ── Billing tab ───────────────────────────────────────────────────
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $contractNumber = null;
+
+    /** The date the first invoice goes (or went) out. */
+    #[ORM\Column(type: 'date_immutable', nullable: true)]
+    private ?\DateTimeImmutable $firstInvoiceDate = null;
+
+    /** One of BILLING_PERIODS: how often the customer is invoiced. */
+    #[ORM\Column(length: 16, nullable: true)]
+    private ?string $billingPeriod = null;
+
+    /** The title the monthly fee is invoiced under (admin-managed list). */
+    #[ORM\ManyToOne(targetEntity: FeeTitle::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?FeeTitle $feeTitle = null;
+
+    /** Percentage discount applied to the monthly fee total (0–100). */
+    #[ORM\Column(type: 'decimal', precision: 5, scale: 2, nullable: true)]
+    private ?string $feeDiscountPercent = null;
+
+    /**
+     * Contract attachments (PDF, Word, image). Removed with the customer;
+     * the files on disk are removed by the controller.
+     *
+     * @var Collection<int, CustomerContractFile>
+     */
+    #[ORM\OneToMany(mappedBy: 'customer', targetEntity: CustomerContractFile::class, cascade: ['remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['createdAt' => 'ASC', 'id' => 'ASC'])]
+    private Collection $contractFiles;
+
     #[ORM\Column(type: 'date_immutable', nullable: true)]
     private ?\DateTimeImmutable $validFrom = null;
 
@@ -142,6 +185,7 @@ class Customer
         $this->cards = new ArrayCollection();
         $this->opportunities = new ArrayCollection();
         $this->activities = new ArrayCollection();
+        $this->contractFiles = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -281,7 +325,7 @@ class Customer
      *
      * @return array<string, string>
      */
-    public function monthlyFeeTotals(\DateTimeImmutable $date): array
+    public function monthlyFeeTotals(\DateTimeImmutable $date, bool $applyDiscount = true): array
     {
         $totals = [];
         foreach ($this->feeItems as $item) {
@@ -292,7 +336,13 @@ class Customer
         }
         ksort($totals);
 
-        return array_map(fn (float $sum): string => number_format($sum, 2, '.', ''), $totals);
+        // The customer-level discount makes the total the REAL invoiced
+        // amount; the per-item list prices stay untouched.
+        $factor = $applyDiscount && null !== $this->feeDiscountPercent
+            ? 1 - ((float) $this->feeDiscountPercent) / 100
+            : 1.0;
+
+        return array_map(fn (float $sum): string => number_format($sum * $factor, 2, '.', ''), $totals);
     }
 
     /**
@@ -309,6 +359,83 @@ class Customer
     public function getActivities(): Collection
     {
         return $this->activities;
+    }
+
+    // ── Billing tab accessors ─────────────────────────────────────────
+
+    public function getContractNumber(): ?string
+    {
+        return $this->contractNumber;
+    }
+
+    public function setContractNumber(?string $contractNumber): static
+    {
+        $this->contractNumber = $contractNumber;
+
+        return $this;
+    }
+
+    public function getFirstInvoiceDate(): ?\DateTimeImmutable
+    {
+        return $this->firstInvoiceDate;
+    }
+
+    public function setFirstInvoiceDate(?\DateTimeImmutable $firstInvoiceDate): static
+    {
+        $this->firstInvoiceDate = $firstInvoiceDate;
+
+        return $this;
+    }
+
+    public function getBillingPeriod(): ?string
+    {
+        return $this->billingPeriod;
+    }
+
+    public function setBillingPeriod(?string $billingPeriod): static
+    {
+        $this->billingPeriod = null !== $billingPeriod && \in_array($billingPeriod, self::BILLING_PERIODS, true)
+            ? $billingPeriod
+            : null;
+
+        return $this;
+    }
+
+    public function getFeeTitle(): ?FeeTitle
+    {
+        return $this->feeTitle;
+    }
+
+    public function setFeeTitle(?FeeTitle $feeTitle): static
+    {
+        $this->feeTitle = $feeTitle;
+
+        return $this;
+    }
+
+    public function getFeeDiscountPercent(): ?string
+    {
+        return $this->feeDiscountPercent;
+    }
+
+    /** Clamped to 0–100; 0 and null both mean "no discount". */
+    public function setFeeDiscountPercent(?string $feeDiscountPercent): static
+    {
+        if (null === $feeDiscountPercent || '' === $feeDiscountPercent || (float) $feeDiscountPercent <= 0) {
+            $this->feeDiscountPercent = null;
+        } else {
+            $this->feeDiscountPercent = number_format(min(100.0, (float) $feeDiscountPercent), 2, '.', '');
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, CustomerContractFile>
+     */
+    public function getContractFiles(): Collection
+    {
+        return $this->contractFiles;
     }
 
     public function getValidFrom(): ?\DateTimeImmutable

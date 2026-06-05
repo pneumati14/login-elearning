@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useFulfillmentStore, type FulfillmentItem, type FulfillmentStage } from '@/stores/fulfillment'
+import { useMoneyFormat } from '@/stores/currencySettings'
 import AppSelect from '@/components/AppSelect.vue'
 
 const { t, locale } = useI18n()
@@ -43,13 +44,9 @@ function typeCount(typeId: number): number {
 }
 
 // ── Formatting ───────────────────────────────────────────────────────
+const fmtMoneyRaw = useMoneyFormat()
 function fmtMoney(value: string | null, currency: string): string {
-  if (null === value) return '—'
-  return new Intl.NumberFormat(locale.value, {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(Number(value))
+  return null === value ? '—' : fmtMoneyRaw(value, currency)
 }
 
 function fmtDate(iso: string | null): string {

@@ -7,6 +7,7 @@ import ReportChart from '@/components/ReportChart.vue'
 import { useReportsStore, type ReportTotal, type ReportType } from '@/stores/reports'
 import { useOpportunityTypesStore } from '@/stores/opportunityTypes'
 import { useUsersStore } from '@/stores/users'
+import { useMoneyFormat } from '@/stores/currencySettings'
 import AppSelect from '@/components/AppSelect.vue'
 
 const { t, locale } = useI18n()
@@ -92,12 +93,9 @@ watch(filterTypeId, () => {
 watch([filterTypeId, filterUserId, selectedStageIds], reload)
 
 // ── Formatting ───────────────────────────────────────────────────────────
+const fmtMoneyRaw = useMoneyFormat()
 function fmtMoney(amount: string | number, currency: string = filterCurrency.value): string {
-  return new Intl.NumberFormat(locale.value, {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(Number(amount))
+  return fmtMoneyRaw(amount, currency)
 }
 
 function fmtCompact(amount: number, currency: string = filterCurrency.value): string {

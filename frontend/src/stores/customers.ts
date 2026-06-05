@@ -164,11 +164,41 @@ export interface CustomerCardFields {
   supplierId: number | null
 }
 
+export type BillingPeriod = 'monthly' | 'quarterly' | 'semiannual' | 'yearly'
+
+export const BILLING_PERIODS: BillingPeriod[] = ['monthly', 'quarterly', 'semiannual', 'yearly']
+
+export interface ContractFile {
+  id: number
+  name: string
+  mimeType: string
+  createdAt: string
+}
+
+export interface CustomerBilling {
+  contractNumber: string | null
+  firstInvoiceDate: string | null
+  billingPeriod: BillingPeriod | null
+  feeDiscountPercent: string | null
+  feeTitleId: number | null
+  feeTitleName: string | null
+  contractFiles: ContractFile[]
+}
+
+export interface CustomerBillingFields {
+  contractNumber: string | null
+  firstInvoiceDate: string | null
+  billingPeriod: BillingPeriod | null
+  feeDiscountPercent: string | null
+  feeTitleId: number | null
+}
+
 export interface Customer {
   id: number
   name: string
   status: CustomerStatus
   monthlyFeeTotals: FeeTotal[]
+  monthlyFeeGrossTotals: FeeTotal[]
   feeItems: FeeItem[]
   cards: CustomerCard[]
   address: Address
@@ -180,6 +210,7 @@ export interface Customer {
   notes: string | null
   validFrom: string | null
   validUntil: string | null
+  billing: CustomerBilling
   salesAssignments: SalesAssignment[]
   contacts: Contact[]
   createdAt: string
@@ -503,7 +534,7 @@ export const useCustomersStore = defineStore('customers', () => {
         body: undefined === body ? undefined : JSON.stringify(body),
       })
       const data = (await response.json().catch(() => null)) as
-        | { feeItems: FeeItem[]; monthlyFeeTotals: FeeTotal[] }
+        | { feeItems: FeeItem[]; monthlyFeeTotals: FeeTotal[]; monthlyFeeGrossTotals: FeeTotal[] }
         | { error?: string }
         | null
       if (!response.ok) {
@@ -512,7 +543,9 @@ export const useCustomersStore = defineStore('customers', () => {
       }
       if (data && 'feeItems' in data) {
         customers.value = customers.value.map((c) =>
-          c.id === customerId ? { ...c, feeItems: data.feeItems, monthlyFeeTotals: data.monthlyFeeTotals } : c,
+          c.id === customerId
+            ? { ...c, feeItems: data.feeItems, monthlyFeeTotals: data.monthlyFeeTotals, monthlyFeeGrossTotals: data.monthlyFeeGrossTotals }
+            : c,
         )
       }
       return { ok: true }
@@ -535,6 +568,11 @@ export const useCustomersStore = defineStore('customers', () => {
 
   function raiseFee(customerId: number, feeId: number, fields: FeeRaiseFields): Promise<MutationResult> {
     return mutateFee(customerId, `/${feeId}/raise`, 'POST', fields, 'Az áremelés rögzítése nem sikerült.')
+  }
+
+  /** Percentage raise applied to every fee item active on the date. */
+  function raiseAllFees(customerId: number, percent: string, effectiveFrom: string): Promise<MutationResult> {
+    return mutateFee(customerId, '/raise-all', 'POST', { percent, effectiveFrom }, 'Az áremelés rögzítése nem sikerült.')
   }
 
   // ── Cards & their orders ──────────────────────────────────────────
@@ -607,6 +645,84 @@ export const useCustomersStore = defineStore('customers', () => {
     status: CardOrderStatus,
   ): Promise<MutationResult> {
     return mutateCard(customerId, `/${cardId}/orders/${orderId}/status`, 'PUT', { status }, 'Az áthelyezés nem sikerült.')
+  }
+
+  // ── Billing tab ──────────────────────────────────────────────────
+  // Every billing mutation returns the billing block — patch it onto
+  // the cached customer.
+  function patchBilling(customerId: number, billing: CustomerBilling): void {
+    customers.value = customers.value.map((c) => (c.id === customerId ? { ...c, billing } : c))
+  }
+
+  async function updateBilling(customerId: number, fields: Partial<CustomerBillingFields>): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${customerId}/billing`, {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(fields),
+      })
+      const data = (await response.json().catch(() => null)) as CustomerBilling | { error?: string } | null
+      if (!response.ok) {
+        const message = data && 'error' in data && data.error ? data.error : 'A mentés nem sikerült.'
+        return { ok: false, error: message }
+      }
+      if (data && 'contractFiles' in data) {
+        patchBilling(customerId, data)
+        // The discount changes the monthly fee totals shown everywhere —
+        // refetch the customer so they update too.
+        void fetchCustomer(customerId)
+      }
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  async function uploadContractFile(customerId: number, file: File): Promise<MutationResult> {
+    try {
+      const body = new FormData()
+      body.append('file', file)
+      const response = await fetch(`${API_URL}/admin/customers/${customerId}/billing/contracts`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+        body,
+      })
+      const data = (await response.json().catch(() => null)) as CustomerBilling | { error?: string } | null
+      if (!response.ok) {
+        const message = data && 'error' in data && data.error ? data.error : 'A feltöltés nem sikerült.'
+        return { ok: false, error: message }
+      }
+      if (data && 'contractFiles' in data) patchBilling(customerId, data)
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  async function deleteContractFile(customerId: number, fileId: number): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${customerId}/billing/contracts/${fileId}`, {
+        method: 'DELETE',
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      })
+      const data = (await response.json().catch(() => null)) as CustomerBilling | { error?: string } | null
+      if (!response.ok) {
+        const message = data && 'error' in data && data.error ? data.error : 'A törlés nem sikerült.'
+        return { ok: false, error: message }
+      }
+      if (data && 'contractFiles' in data) patchBilling(customerId, data)
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  /** Same-origin download URL for a contract attachment. */
+  function contractFileUrl(customerId: number, fileId: number): string {
+    return `${API_URL}/admin/customers/${customerId}/billing/contracts/${fileId}`
   }
 
   // ── Contacts ─────────────────────────────────────────────────────
@@ -712,6 +828,7 @@ export const useCustomersStore = defineStore('customers', () => {
     updateFee,
     deleteFee,
     raiseFee,
+    raiseAllFees,
     createCard,
     updateCard,
     deleteCard,
@@ -719,6 +836,10 @@ export const useCustomersStore = defineStore('customers', () => {
     updateCardOrder,
     deleteCardOrder,
     moveCardOrderStatus,
+    updateBilling,
+    uploadContractFile,
+    deleteContractFile,
+    contractFileUrl,
     createSalesAssignment,
     updateSalesAssignment,
     deleteSalesAssignment,

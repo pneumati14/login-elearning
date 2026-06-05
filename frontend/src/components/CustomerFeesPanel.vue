@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useCustomersStore, type Customer, type FeeItem, type FeeItemFields } from '@/stores/customers'
 import { useProductsStore, productStatus } from '@/stores/products'
+import { useMoneyFormat } from '@/stores/currencySettings'
 import AppSelect from '@/components/AppSelect.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 
 const props = defineProps<{ customer: Customer }>()
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const store = useCustomersStore()
 const productsStore = useProductsStore()
 const { products } = storeToRefs(productsStore)
@@ -29,6 +30,34 @@ const productOptions = computed(() => {
 onMounted(() => {
   if (0 === products.value.length) productsStore.fetchProducts()
 })
+
+// ── Total discount (applies to every fee item) ──────────────────────
+// Stored on the customer; the backend applies it to the monthly totals
+// shown everywhere, while the per-item list prices stay untouched.
+const discountInput = ref(props.customer.billing.feeDiscountPercent ?? '')
+watch(
+  () => props.customer.id,
+  () => (discountInput.value = props.customer.billing.feeDiscountPercent ?? ''),
+)
+const discountSaving = ref(false)
+const discountSaved = ref(false)
+const discountError = ref<string | null>(null)
+
+async function saveDiscount(): Promise<void> {
+  discountSaving.value = true
+  discountError.value = null
+  discountSaved.value = false
+  const result = await store.updateBilling(props.customer.id, {
+    feeDiscountPercent: '' === String(discountInput.value).trim() ? null : String(discountInput.value),
+  })
+  discountSaving.value = false
+  if (result.ok) {
+    discountSaved.value = true
+    window.setTimeout(() => (discountSaved.value = false), 2500)
+  } else {
+    discountError.value = result.error ?? t('admin.saveFailed')
+  }
+}
 
 // ── AppSelect option lists ───────────────────────────────────────────
 const productSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
@@ -66,13 +95,7 @@ const formPerHeadTotal = computed(() => {
 })
 
 // ── Formatting ───────────────────────────────────────────────────────
-function fmtMoney(amount: string, currency: string): string {
-  return new Intl.NumberFormat(locale.value, {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(Number(amount))
-}
+const fmtMoney = useMoneyFormat()
 
 function todayISO(): string {
   const d = new Date()
@@ -151,7 +174,7 @@ function openEdit(item: FeeItem): void {
   editingId.value = item.id
   formError.value = null
   showForm.value = true
-  raisingId.value = null
+  showRaise.value = false
 }
 
 function closeForm(): void {
@@ -180,48 +203,39 @@ async function onDelete(item: FeeItem): Promise<void> {
   if (!result.ok) window.alert(result.error ?? t('admin.deleteFailed'))
 }
 
-// ── Price / headcount change ─────────────────────────────────────────
-const raisingId = ref<number | null>(null)
-const raiseAmount = ref('')
-const raiseUnit = ref('')
-const raiseQuantity = ref<number | null>(null)
+// ── Raise: a percentage on the WHOLE monthly fee ─────────────────────
+// Every item active on the effective date is closed and re-opened at
+// the raised price (per-head: raised unit price); history is kept.
+const showRaise = ref(false)
+const raisePercent = ref('')
 const raiseFrom = ref('')
 const raising = ref(false)
 const raiseError = ref<string | null>(null)
 
-function openRaise(item: FeeItem): void {
-  raisingId.value = item.id
-  raiseAmount.value = item.amount
-  raiseUnit.value = item.unitAmount ?? ''
-  raiseQuantity.value = item.quantity
+function openRaise(): void {
+  raisePercent.value = ''
   raiseFrom.value = todayISO()
   raiseError.value = null
+  showRaise.value = true
   showForm.value = false
 }
 
-// New total preview for a per-head change.
-const raisePerHeadTotal = computed(() => {
-  const item = props.customer.feeItems.find((i) => i.id === raisingId.value)
-  if (!item?.isPerHead) return null
-  const unit = Number(raiseUnit.value || 0)
-  const qty = Number(raiseQuantity.value ?? 0)
-  if (unit <= 0 || qty <= 0) return null
-  return fmtMoney(String(unit * qty), item.currency)
+// Live preview of the raised totals, per currency.
+const raisePreview = computed(() => {
+  const pct = Number(raisePercent.value)
+  if (!pct || pct <= -100) return null
+  return props.customer.monthlyFeeGrossTotals
+    .map((tt) => fmtMoney(String(Number(tt.amount) * (1 + pct / 100)), tt.currency))
+    .join(' · ')
 })
 
-async function onRaise(item: FeeItem): Promise<void> {
+async function onRaise(): Promise<void> {
   raiseError.value = null
   raising.value = true
-  const result = await store.raiseFee(
-    props.customer.id,
-    item.id,
-    item.isPerHead
-      ? { unitAmount: raiseUnit.value, quantity: raiseQuantity.value ?? undefined, effectiveFrom: raiseFrom.value }
-      : { amount: raiseAmount.value, effectiveFrom: raiseFrom.value },
-  )
+  const result = await store.raiseAllFees(props.customer.id, raisePercent.value, raiseFrom.value)
   raising.value = false
   if (result.ok) {
-    raisingId.value = null
+    showRaise.value = false
   } else {
     raiseError.value = result.error ?? t('admin.saveFailed')
   }
@@ -240,12 +254,74 @@ async function onRaise(item: FeeItem): Promise<void> {
             {{ fmtMoney(tt.amount, tt.currency) }}
           </span>
         </span>
+        <span v-if="Number(customer.billing.feeDiscountPercent ?? 0) > 0 && customer.monthlyFeeGrossTotals.length > 0" class="fee-sum-gross">
+          <span class="fee-gross-strike">
+            <span v-for="tt in customer.monthlyFeeGrossTotals" :key="tt.currency">
+              {{ fmtMoney(tt.amount, tt.currency) }}
+            </span>
+          </span>
+          <span class="fee-gross-badge">−{{ Number(customer.billing.feeDiscountPercent) }}%</span>
+        </span>
         <span class="fee-sum-sub">{{ t('adminCustomers.feeActiveCount', { count: activeCount }) }}</span>
+        <span v-if="Number(customer.billing.feeDiscountPercent ?? 0) > 0" class="fee-sum-sub">
+          {{ t('adminCustomers.feeDiscountNote', { percent: Number(customer.billing.feeDiscountPercent) }) }}
+        </span>
       </div>
-      <button type="button" class="btn-submit" @click="showForm ? closeForm() : openCreate()">
-        {{ showForm ? t('adminUsers.cancel') : '+ ' + t('adminCustomers.feeAddButton') }}
-      </button>
+
+      <!-- Total discount applied to every fee item. -->
+      <div class="fee-discount-box">
+        <label class="fee-discount-field">
+          <span>{{ t('adminCustomers.billingDiscount') }}</span>
+          <input
+            v-model="discountInput"
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            inputmode="decimal"
+            @keydown.enter.prevent="saveDiscount"
+          />
+        </label>
+        <button type="button" class="btn-ghost" :disabled="discountSaving" @click="saveDiscount">
+          {{ discountSaving ? t('admin.saving') : t('admin.save') }}
+        </button>
+        <span v-if="discountSaved" class="fee-discount-saved">✓</span>
+        <p v-if="discountError" class="fee-discount-error">{{ discountError }}</p>
+      </div>
+
+      <div class="fee-head-actions">
+        <button type="button" class="btn-ghost btn-raise-open" @click="showRaise ? (showRaise = false) : openRaise()">
+          {{ showRaise ? t('adminUsers.cancel') : t('adminCustomers.raise') }}
+        </button>
+        <button type="button" class="btn-submit" @click="showForm ? closeForm() : openCreate()">
+          {{ showForm ? t('adminUsers.cancel') : '+ ' + t('adminCustomers.feeAddButton') }}
+        </button>
+      </div>
     </div>
+
+    <!-- ── Raise the whole monthly fee ─────────────────────────────── -->
+    <form v-if="showRaise" class="raise-form raise-form--global" @submit.prevent="onRaise">
+      <h3>{{ t('adminCustomers.raiseAllTitle') }}</h3>
+      <p class="raise-hint">{{ t('adminCustomers.raiseAllHint') }}</p>
+      <div class="raise-grid">
+        <label class="field">
+          <span>{{ t('adminCustomers.raiseAllPercent') }} *</span>
+          <input v-model="raisePercent" type="number" min="-99.99" max="1000" step="0.01" required />
+        </label>
+        <label class="field">
+          <span>{{ t('adminCustomers.raiseEffectiveFrom') }} *</span>
+          <input v-model="raiseFrom" type="date" required />
+        </label>
+        <span v-if="raisePreview" class="raise-total">→ {{ raisePreview }}</span>
+      </div>
+      <p v-if="raiseError" class="msg msg--error">{{ raiseError }}</p>
+      <div class="raise-actions">
+        <button type="submit" class="btn-submit" :disabled="raising">
+          {{ raising ? t('admin.saving') : t('adminCustomers.raiseSubmit') }}
+        </button>
+        <button type="button" class="btn-ghost" @click="showRaise = false">{{ t('adminUsers.cancel') }}</button>
+      </div>
+    </form>
 
     <!-- ── Create / edit form ──────────────────────────────────────── -->
     <form v-if="showForm" class="fee-form" @submit.prevent="onSubmit">
@@ -350,14 +426,6 @@ async function onRaise(item: FeeItem): Promise<void> {
               </td>
               <td class="col-actions">
                 <div class="fee-row-actions">
-                  <button
-                    v-if="feeState(item) !== 'expired'"
-                    type="button"
-                    class="btn-mini-raise"
-                    @click="raisingId === item.id ? (raisingId = null) : openRaise(item)"
-                  >
-                    {{ t('adminCustomers.raise') }}
-                  </button>
                   <button type="button" class="btn-icon" :title="t('admin.edit')" :aria-label="t('admin.edit')" @click="openEdit(item)">
                     <IconEdit />
                   </button>
@@ -373,48 +441,28 @@ async function onRaise(item: FeeItem): Promise<void> {
                 </div>
               </td>
             </tr>
-            <tr v-if="raisingId === item.id" class="raise-row">
-              <td colspan="5">
-                <form class="raise-form" @submit.prevent="onRaise(item)">
-                  <template v-if="item.isPerHead">
-                    <label class="field">
-                      <span>{{ t('adminCustomers.raiseNewUnitAmount') }} ({{ item.currency }}) *</span>
-                      <input v-model="raiseUnit" type="number" min="0" step="any" required />
-                    </label>
-                    <label class="field">
-                      <span>{{ t('adminCustomers.raiseNewQuantity') }} *</span>
-                      <input v-model.number="raiseQuantity" type="number" min="1" step="1" required />
-                    </label>
-                    <span v-if="raisePerHeadTotal" class="raise-total">= {{ raisePerHeadTotal }}</span>
-                  </template>
-                  <label v-else class="field">
-                    <span>{{ t('adminCustomers.raiseNewAmount') }} ({{ item.currency }}) *</span>
-                    <input v-model="raiseAmount" type="number" min="0" step="any" required />
-                  </label>
-                  <label class="field">
-                    <span>{{ t('adminCustomers.raiseEffectiveFrom') }} *</span>
-                    <input v-model="raiseFrom" type="date" required />
-                  </label>
-                  <button type="submit" class="btn-submit btn-raise-submit" :disabled="raising">
-                    {{ raising ? t('admin.saving') : t('adminCustomers.raiseSubmit') }}
-                  </button>
-                  <button type="button" class="btn-ghost" @click="raisingId = null">{{ t('adminUsers.cancel') }}</button>
-                  <p v-if="raiseError" class="msg msg--error raise-error">{{ raiseError }}</p>
-                </form>
-              </td>
-            </tr>
           </template>
         </tbody>
         <tfoot>
           <tr>
             <td>{{ t('adminCustomers.feeTotalRow') }}</td>
             <td class="num fee-total-cell">
-              <div v-if="customer.monthlyFeeTotals.length === 0">—</div>
-              <div v-for="tt in customer.monthlyFeeTotals" :key="tt.currency">
+              <div v-if="customer.monthlyFeeGrossTotals.length === 0">—</div>
+              <div v-for="tt in customer.monthlyFeeGrossTotals" :key="tt.currency">
                 {{ fmtMoney(tt.amount, tt.currency) }}
               </div>
             </td>
             <td colspan="3" class="fee-total-hint">{{ t('adminCustomers.feeTotalHint') }}</td>
+          </tr>
+          <!-- Grand total after the customer-level discount. -->
+          <tr v-if="Number(customer.billing.feeDiscountPercent ?? 0) > 0" class="fee-net-row">
+            <td>{{ t('adminCustomers.feeNetTotalRow') }}</td>
+            <td class="num fee-total-cell fee-net-cell">
+              <div v-for="tt in customer.monthlyFeeTotals" :key="tt.currency">
+                {{ fmtMoney(tt.amount, tt.currency) }}
+              </div>
+            </td>
+            <td colspan="3" class="fee-total-hint">−{{ Number(customer.billing.feeDiscountPercent) }}%</td>
           </tr>
         </tfoot>
       </table>
@@ -464,6 +512,141 @@ async function onRaise(item: FeeItem): Promise<void> {
   color: #aab6d3;
   font-size: 0.82rem;
   font-weight: 600;
+}
+
+.fee-sum-gross {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.fee-gross-strike {
+  display: flex;
+  gap: 0.2rem 0.8rem;
+  flex-wrap: wrap;
+  color: #8fa0c5;
+  font-size: 0.98rem;
+  font-weight: 600;
+  text-decoration: line-through;
+}
+
+.fee-gross-badge {
+  padding: 0.1rem 0.5rem;
+  background: var(--login-primary, #ed2044);
+  border-radius: 100vw;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+/* Stands apart from the list-price total: brand-red on a soft pink band.
+   Specificity must beat `.fee-table tfoot td`, hence the long selector. */
+.fee-table tfoot .fee-net-row td {
+  background: #fdeef1;
+  border-top: 2px solid var(--login-primary, #ed2044);
+  color: var(--login-primary, #ed2044);
+  font-weight: 700;
+}
+
+.fee-table tfoot .fee-net-row .fee-total-hint {
+  color: var(--login-primary, #ed2044);
+}
+
+.fee-net-cell {
+  font-size: 1.02rem;
+}
+
+.fee-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.raise-form--global {
+  margin-bottom: 1.3rem;
+  padding: 1.2rem 1.3rem;
+  background: #fff7ed;
+  border: 1px solid #fcd9a8;
+  border-radius: 0.8rem;
+}
+
+.raise-form--global h3 {
+  margin: 0 0 0.3rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 1.05rem;
+}
+
+.raise-hint {
+  margin: 0 0 0.9rem;
+  color: #8a6d3b;
+  font-size: 0.85rem;
+}
+
+.raise-grid {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.raise-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.fee-discount-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-right: auto;
+  padding: 0.8rem 1rem;
+  background: #f7f8fb;
+  border-radius: 0.8rem;
+}
+
+.fee-discount-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.fee-discount-field span {
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.fee-discount-field input {
+  width: 110px;
+  padding: 0.5rem 0.7rem;
+  background: #fff;
+  border: 1px solid #d4dae6;
+  border-radius: 0.5rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.fee-discount-field input:focus {
+  outline: 2px solid var(--login-primary, #ed2044);
+  outline-offset: -1px;
+}
+
+.fee-discount-saved {
+  align-self: center;
+  color: #198754;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.fee-discount-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: #b3122e;
+  font-size: 0.85rem;
 }
 
 .fee-form {

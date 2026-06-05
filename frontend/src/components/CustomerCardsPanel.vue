@@ -14,6 +14,7 @@ import {
 } from '@/stores/customers'
 import { useProductsStore, productStatus } from '@/stores/products'
 import { useSuppliersStore } from '@/stores/suppliers'
+import { useMoneyFormat } from '@/stores/currencySettings'
 import AppSelect from '@/components/AppSelect.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
@@ -41,13 +42,7 @@ function fmtDate(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString(locale.value)
 }
 
-function fmtMoney(amount: number, currency: string): string {
-  return new Intl.NumberFormat(locale.value, {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
+const fmtMoney = useMoneyFormat()
 
 // ── Order economics (totals + margin) ────────────────────────────────
 function saleTotal(o: CardOrder): number | null {

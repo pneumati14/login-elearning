@@ -12,15 +12,18 @@ import {
 } from '@/stores/customers'
 import { useOpportunitiesStore } from '@/stores/opportunities'
 import { useActivitiesStore, formatDateTime, taskUrgency, type Urgency } from '@/stores/activities'
+import { useMoneyFormat } from '@/stores/currencySettings'
 import CustomerEditor from '@/components/CustomerEditor.vue'
 import CustomerFeesPanel from '@/components/CustomerFeesPanel.vue'
+import CustomerBillingPanel from '@/components/CustomerBillingPanel.vue'
 import CustomerCardsPanel from '@/components/CustomerCardsPanel.vue'
 import CustomerContactsPanel from '@/components/CustomerContactsPanel.vue'
 import CustomerOpportunitiesPanel from '@/components/CustomerOpportunitiesPanel.vue'
 import ActivityList from '@/components/ActivityList.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
+const fmtMoney = useMoneyFormat()
 const route = useRoute()
 const store = useCustomersStore()
 
@@ -32,12 +35,13 @@ const loading = ref(true)
 const notFound = ref(false)
 const editing = ref(false)
 
-type TabKey = 'overview' | 'fees' | 'cards' | 'contacts' | 'opportunities' | 'timeline'
+type TabKey = 'overview' | 'fees' | 'billing' | 'cards' | 'contacts' | 'opportunities' | 'timeline'
 const activeTab = ref<TabKey>('overview')
 
 const tabs: { key: TabKey; label: string; ready: boolean }[] = [
   { key: 'overview', label: 'tabOverview', ready: true },
   { key: 'fees', label: 'tabFees', ready: true },
+  { key: 'billing', label: 'tabBilling', ready: true },
   { key: 'cards', label: 'tabCards', ready: true },
   { key: 'contacts', label: 'tabContacts', ready: true },
   { key: 'opportunities', label: 'tabOpportunities', ready: true },
@@ -83,11 +87,7 @@ function validityLabel(c: Customer): string {
 function feeLines(c: Customer): string[] {
   if (0 === c.monthlyFeeTotals.length) return ['—']
   return c.monthlyFeeTotals.map((tt) =>
-    new Intl.NumberFormat(locale.value, {
-      style: 'currency',
-      currency: tt.currency,
-      maximumFractionDigits: 0,
-    }).format(Number(tt.amount)),
+    fmtMoney(tt.amount, tt.currency),
   )
 }
 
@@ -117,7 +117,7 @@ const openOppLines = computed(() => {
   return Object.entries(sums)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([currency, sum]) =>
-      new Intl.NumberFormat(locale.value, { style: 'currency', currency, maximumFractionDigits: 0 }).format(sum),
+      fmtMoney(sum, currency),
     )
 })
 
@@ -392,6 +392,11 @@ function salesPeriod(a: SalesAssignment): string {
         <!-- ── Monthly fees ─────────────────────────────────────────── -->
         <div v-else-if="activeTab === 'fees'" class="cust-panel">
           <CustomerFeesPanel :customer="customer" />
+        </div>
+
+        <!-- ── Billing (contract + invoicing data) ──────────────────── -->
+        <div v-else-if="activeTab === 'billing'" class="cust-panel">
+          <CustomerBillingPanel :customer="customer" />
         </div>
 
         <!-- ── Cards ────────────────────────────────────────────────── -->

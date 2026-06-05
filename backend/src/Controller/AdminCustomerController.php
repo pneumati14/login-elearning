@@ -238,9 +238,15 @@ final class AdminCustomerController extends AbstractController
      */
     private function serialize(Customer $c): array
     {
+        $today = new \DateTimeImmutable('today');
         $feeTotals = [];
-        foreach ($c->monthlyFeeTotals(new \DateTimeImmutable('today')) as $currency => $amount) {
+        foreach ($c->monthlyFeeTotals($today) as $currency => $amount) {
             $feeTotals[] = ['currency' => $currency, 'amount' => $amount];
+        }
+        // List-price sums, shown next to the discounted total on the billing tab.
+        $feeGrossTotals = [];
+        foreach ($c->monthlyFeeTotals($today, false) as $currency => $amount) {
+            $feeGrossTotals[] = ['currency' => $currency, 'amount' => $amount];
         }
 
         return [
@@ -248,6 +254,7 @@ final class AdminCustomerController extends AbstractController
             'name' => $c->getName(),
             'status' => $c->getStatus(),
             'monthlyFeeTotals' => $feeTotals,
+            'monthlyFeeGrossTotals' => $feeGrossTotals,
             'feeItems' => array_map(
                 fn (CustomerFeeItem $item): array => $this->serializeFeeItem($item),
                 $c->getFeeItems()->toArray(),
@@ -265,6 +272,7 @@ final class AdminCustomerController extends AbstractController
             'notes' => $c->getNotes(),
             'validFrom' => $c->getValidFrom()?->format('Y-m-d'),
             'validUntil' => $c->getValidUntil()?->format('Y-m-d'),
+            'billing' => AdminCustomerBillingController::serializeBilling($c),
             'salesAssignments' => array_map(
                 fn (CustomerSalesAssignment $a): array => $this->serializeAssignment($a),
                 $c->getSalesAssignments()->toArray(),
