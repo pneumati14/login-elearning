@@ -161,9 +161,9 @@ function contactName(a: Activity): string {
 
 <template>
   <div class="activity-list">
-    <div class="act-head">
-      <button type="button" class="btn-new" @click="showForm && editingId === null ? closeForm() : openNew()">
-        {{ showForm && editingId === null ? t('adminUsers.cancel') : '+ ' + t('adminCustomers.actAdd') }}
+    <div v-if="!showForm" class="act-head">
+      <button type="button" class="btn-new" @click="openNew()">
+        {{ '+ ' + t('adminCustomers.actAdd') }}
       </button>
     </div>
 
@@ -207,10 +207,10 @@ function contactName(a: Activity): string {
       </div>
     </form>
 
-    <!-- ── Timeline ───────────────────────────────────────────────── -->
-    <p v-if="activities.length === 0" class="state">{{ t('adminCustomers.actEmpty') }}</p>
+    <!-- ── Timeline (hidden while the form is open) ───────────────── -->
+    <p v-if="!showForm && activities.length === 0" class="state">{{ t('adminCustomers.actEmpty') }}</p>
 
-    <ul v-else class="timeline">
+    <ul v-else-if="!showForm" class="timeline">
       <li
         v-for="a in activities"
         :key="a.id"

@@ -11,18 +11,18 @@ const { l } = useLocalized()
 const store = usePositionsStore()
 const { positions, loading, error } = storeToRefs(store)
 
-// ── New position form ────────────────────────────────────────────────
+// ── New position form (replaces the list while open) ─────────────────
 const form = reactive({
   title: emptyLocalized(),
   location: emptyLocalized(),
   type: emptyLocalized(),
   summary: emptyLocalized(),
 })
+const showCreate = ref(false)
 const creating = ref(false)
 const createError = ref<string | null>(null)
-const createSuccess = ref<string | null>(null)
 
-// ── Inline editor — one row open at a time ───────────────────────────
+// ── Editor — replaces the list while open ────────────────────────────
 const editingId = ref<number | null>(null)
 const editForm = reactive({
   title: emptyLocalized(),
@@ -42,9 +42,18 @@ function resetForm() {
   form.summary = emptyLocalized()
 }
 
+function openCreate() {
+  resetForm()
+  createError.value = null
+  showCreate.value = true
+}
+
+function closeCreate() {
+  showCreate.value = false
+}
+
 async function onCreate() {
   createError.value = null
-  createSuccess.value = null
   creating.value = true
 
   const result = await store.createPosition({
@@ -56,8 +65,8 @@ async function onCreate() {
   creating.value = false
 
   if (result.ok) {
-    createSuccess.value = t('adminPositions.created')
     resetForm()
+    showCreate.value = false
   } else {
     createError.value = result.error ?? t('adminPositions.createFailed')
   }
@@ -117,8 +126,8 @@ async function onDelete(pos: Position) {
         <p>{{ t('adminPositions.subtitle') }}</p>
       </div>
 
-      <!-- ── New position ──────────────────────────────────────────── -->
-      <form class="pos-panel" @submit.prevent="onCreate">
+      <!-- ── New position (replaces the list while open) ───────────── -->
+      <form v-if="showCreate" class="pos-panel" @submit.prevent="onCreate">
         <h2>{{ t('adminPositions.newPosition') }}</h2>
 
         <LocalizedInput v-model="form.title" :label="t('adminPositions.titleLabel')" required />
@@ -135,16 +144,44 @@ async function onDelete(pos: Position) {
         <LocalizedInput v-model="form.summary" :label="t('adminPositions.summary')" multiline />
 
         <p v-if="createError" class="msg msg--error">{{ createError }}</p>
-        <p v-if="createSuccess" class="msg msg--success">{{ createSuccess }}</p>
 
-        <button type="submit" class="btn-submit" :disabled="creating">
-          {{ creating ? t('admin.creating') : t('adminPositions.create') }}
-        </button>
+        <div class="pos-edit-actions">
+          <button type="submit" class="btn-submit" :disabled="creating">
+            {{ creating ? t('admin.creating') : t('adminPositions.create') }}
+          </button>
+          <button type="button" class="btn-ghost" @click="closeCreate">{{ t('adminUsers.cancel') }}</button>
+        </div>
       </form>
 
+      <!-- ── Editor (replaces the list while open) ─────────────────── -->
+      <div v-else-if="editingId !== null" class="pos-panel">
+        <h2>{{ t('admin.edit') }}</h2>
+
+        <LocalizedInput v-model="editForm.title" :label="t('adminPositions.titleLabel')" required />
+        <LocalizedInput v-model="editForm.location" :label="t('adminPositions.location')" />
+        <LocalizedInput v-model="editForm.type" :label="t('adminPositions.type')" />
+        <LocalizedInput v-model="editForm.summary" :label="t('adminPositions.summary')" multiline />
+
+        <p v-if="editError" class="msg msg--error">{{ editError }}</p>
+
+        <div class="pos-edit-actions">
+          <button type="button" class="btn-submit" :disabled="editSaving" @click="onSave">
+            {{ editSaving ? t('admin.saving') : t('admin.save') }}
+          </button>
+          <button type="button" class="btn-ghost" @click="closeEdit">
+            {{ t('adminUsers.cancel') }}
+          </button>
+        </div>
+      </div>
+
       <!-- ── Existing positions — list view ────────────────────────── -->
-      <div class="pos-panel">
-        <h2>{{ t('adminPositions.existing') }}</h2>
+      <div v-else class="pos-panel">
+        <div class="pos-list-head">
+          <h2>{{ t('adminPositions.existing') }}</h2>
+          <button type="button" class="btn-submit" @click="openCreate">
+            {{ '+ ' + t('adminPositions.newPosition') }}
+          </button>
+        </div>
 
         <p v-if="loading" class="state">{{ t('adminPositions.loading') }}</p>
 
@@ -169,42 +206,11 @@ async function onDelete(pos: Position) {
                 </span>
               </div>
               <div class="pos-row-actions">
-                <button
-                  type="button"
-                  class="btn-ghost"
-                  @click="editingId === pos.id ? closeEdit() : openEdit(pos)"
-                >
+                <button type="button" class="btn-ghost" @click="openEdit(pos)">
                   {{ t('admin.edit') }}
                 </button>
                 <button type="button" class="btn-delete" @click="onDelete(pos)">
                   {{ t('admin.delete') }}
-                </button>
-              </div>
-            </div>
-
-            <!-- Inline editor for the selected row. -->
-            <div v-if="editingId === pos.id" class="pos-edit">
-              <LocalizedInput
-                v-model="editForm.title"
-                :label="t('adminPositions.titleLabel')"
-                required
-              />
-              <LocalizedInput v-model="editForm.location" :label="t('adminPositions.location')" />
-              <LocalizedInput v-model="editForm.type" :label="t('adminPositions.type')" />
-              <LocalizedInput
-                v-model="editForm.summary"
-                :label="t('adminPositions.summary')"
-                multiline
-              />
-
-              <p v-if="editError" class="msg msg--error">{{ editError }}</p>
-
-              <div class="pos-edit-actions">
-                <button type="button" class="btn-submit" :disabled="editSaving" @click="onSave">
-                  {{ editSaving ? t('admin.saving') : t('admin.save') }}
-                </button>
-                <button type="button" class="btn-ghost" @click="closeEdit">
-                  {{ t('adminUsers.cancel') }}
                 </button>
               </div>
             </div>
@@ -261,6 +267,18 @@ async function onDelete(pos: Position) {
   color: var(--login-secondary, #0c1c40);
   font-size: 1.25rem;
   font-weight: 700;
+}
+
+.pos-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.pos-list-head h2 {
+  margin-bottom: 1.3rem;
 }
 
 .msg {

@@ -92,9 +92,9 @@ function reachLabel(c: Contact): string {
 
 <template>
   <div class="contacts-panel">
-    <div class="contacts-head">
-      <button type="button" class="btn-new" @click="showForm && editingId === null ? closeForm() : openNew()">
-        {{ showForm && editingId === null ? t('adminUsers.cancel') : '+ ' + t('adminCustomers.contactAdd') }}
+    <div v-if="!showForm" class="contacts-head">
+      <button type="button" class="btn-new" @click="openNew()">
+        {{ '+ ' + t('adminCustomers.contactAdd') }}
       </button>
     </div>
 
@@ -148,10 +148,10 @@ function reachLabel(c: Contact): string {
       </div>
     </form>
 
-    <!-- ── Contacts table ───────────────────────────────────────────── -->
-    <p v-if="customer.contacts.length === 0" class="state">{{ t('adminCustomers.contactsEmpty') }}</p>
+    <!-- ── Contacts table (hidden while the form is open) ───────────── -->
+    <p v-if="!showForm && customer.contacts.length === 0" class="state">{{ t('adminCustomers.contactsEmpty') }}</p>
 
-    <div v-else class="contact-table-wrap">
+    <div v-else-if="!showForm" class="contact-table-wrap">
       <table class="contact-table">
         <thead>
           <tr>

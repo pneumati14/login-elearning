@@ -316,10 +316,10 @@ async function onColumnDrop(status: CardOrderStatus): Promise<void> {
 
 <template>
   <div class="card-panel">
-    <div class="card-head">
+    <div v-if="!showCardForm && orderCardId === null" class="card-head">
       <h2>{{ t('adminCustomers.cardsHeader') }}</h2>
-      <button type="button" class="btn-submit" @click="showCardForm ? closeCardForm() : openCreateCard()">
-        {{ showCardForm ? t('adminUsers.cancel') : '+ ' + t('adminCustomers.cardAddButton') }}
+      <button type="button" class="btn-submit" @click="openCreateCard()">
+        {{ '+ ' + t('adminCustomers.cardAddButton') }}
       </button>
     </div>
 
@@ -350,7 +350,7 @@ async function onColumnDrop(status: CardOrderStatus): Promise<void> {
     </form>
 
     <!-- ── Order kanban: drag between workflow statuses ────────────── -->
-    <div v-if="kanbanItems.length > 0" class="kanban-wrap">
+    <div v-if="!showCardForm && orderCardId === null && kanbanItems.length > 0" class="kanban-wrap">
       <h3 class="kanban-title">{{ t('adminCustomers.orderKanbanHeader') }}</h3>
       <p class="kanban-hint">{{ t('adminCustomers.orderKanbanHint') }}</p>
       <div class="kanban">
@@ -390,16 +390,22 @@ async function onColumnDrop(status: CardOrderStatus): Promise<void> {
       </div>
     </div>
 
-    <p v-if="customer.cards.length === 0" class="muted">{{ t('adminCustomers.cardsEmpty') }}</p>
+    <p v-if="!showCardForm && customer.cards.length === 0" class="muted">{{ t('adminCustomers.cardsEmpty') }}</p>
 
-    <!-- ── Cards ───────────────────────────────────────────────────── -->
-    <div v-for="card in customer.cards" :key="card.id" class="card-item">
+    <!-- ── Cards (hidden while the card form is open; an open order
+         form keeps only its own card visible) ──────────────────────── -->
+    <div
+      v-for="card in customer.cards"
+      v-show="!showCardForm && (orderCardId === null || orderCardId === card.id)"
+      :key="card.id"
+      class="card-item"
+    >
       <div class="card-item-head">
         <div class="card-item-title">
           <span class="card-type">💳 {{ card.type }}</span>
           <span v-if="card.supplierName" class="card-supplier">{{ t('adminCustomers.cardSupplier') }}: {{ card.supplierName }}</span>
         </div>
-        <div class="card-item-actions">
+        <div v-if="orderCardId !== card.id" class="card-item-actions">
           <button type="button" class="btn-icon" :title="t('admin.edit')" :aria-label="t('admin.edit')" @click="openEditCard(card)">
             <IconEdit />
           </button>
@@ -420,12 +426,8 @@ async function onColumnDrop(status: CardOrderStatus): Promise<void> {
       <!-- Orders -->
       <div class="orders-head">
         <h4>{{ t('adminCustomers.cardOrders') }}</h4>
-        <button
-          type="button"
-          class="btn-mini"
-          @click="orderCardId === card.id && null === editingOrderId ? closeOrderForm() : openCreateOrder(card)"
-        >
-          {{ orderCardId === card.id && null === editingOrderId ? t('adminUsers.cancel') : '+ ' + t('adminCustomers.orderAddButton') }}
+        <button v-if="orderCardId !== card.id" type="button" class="btn-mini" @click="openCreateOrder(card)">
+          {{ '+ ' + t('adminCustomers.orderAddButton') }}
         </button>
       </div>
 
@@ -478,9 +480,9 @@ async function onColumnDrop(status: CardOrderStatus): Promise<void> {
         <p v-if="orderError" class="msg msg--error order-error">{{ orderError }}</p>
       </form>
 
-      <p v-if="card.orders.length === 0" class="muted muted--small">{{ t('adminCustomers.ordersEmpty') }}</p>
+      <p v-if="orderCardId !== card.id && card.orders.length === 0" class="muted muted--small">{{ t('adminCustomers.ordersEmpty') }}</p>
 
-      <table v-else class="order-table">
+      <table v-else-if="orderCardId !== card.id" class="order-table">
         <thead>
           <tr>
             <th>{{ t('adminCustomers.orderProduct') }}</th>

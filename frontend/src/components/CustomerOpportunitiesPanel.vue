@@ -315,7 +315,7 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
     <p v-if="!hasTypes" class="state">{{ t('adminCustomers.oppNoTypes') }}</p>
 
     <template v-else>
-      <div class="opp-head">
+      <div v-if="!showForm" class="opp-head">
         <div class="view-toggle" role="tablist">
           <button type="button" :class="{ 'is-active': view === 'list' }" @click="view = 'list'">
             {{ t('adminCustomers.oppViewList') }}
@@ -330,8 +330,8 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
             <span>{{ t('adminCustomers.oppPipeline') }}</span>
             <AppSelect v-model="selectedTypeId" :options="pipelineSelectOptions" />
           </label>
-          <button type="button" class="btn-new" @click="showForm && editingId === null ? closeForm() : openNew()">
-            {{ showForm && editingId === null ? t('adminUsers.cancel') : '+ ' + t('adminCustomers.oppAdd') }}
+          <button type="button" class="btn-new" @click="openNew()">
+            {{ '+ ' + t('adminCustomers.oppAdd') }}
           </button>
         </div>
       </div>
@@ -467,8 +467,8 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
         </div>
       </form>
 
-      <!-- ── List view ──────────────────────────────────────────────── -->
-      <template v-if="view === 'list'">
+      <!-- ── List view (hidden while the form is open) ──────────────── -->
+      <template v-if="!showForm && view === 'list'">
         <p v-if="opportunities.length === 0" class="state">{{ t('adminCustomers.contactsEmpty') }}</p>
         <div v-else class="opp-table-wrap">
           <table class="opp-table">
@@ -538,8 +538,8 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
         </div>
       </template>
 
-      <!-- ── Kanban view ────────────────────────────────────────────── -->
-      <template v-else>
+      <!-- ── Kanban view (hidden while the form is open) ────────────── -->
+      <template v-else-if="!showForm">
         <p v-if="null === selectedType" class="state">{{ t('adminCustomers.oppNoTypes') }}</p>
         <p v-else-if="selectedType.stages.length === 0" class="state">{{ t('adminCustomers.oppNoStages') }}</p>
         <template v-else>

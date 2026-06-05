@@ -159,7 +159,7 @@ function validityLabel(p: Product): string {
             <span>{{ t('adminProducts.name') }} *</span>
             <input v-model="form.name" type="text" required maxlength="255" />
           </label>
-          <label class="field">
+          <label class="field field--wide">
             <span>{{ t('adminProducts.sku') }}</span>
             <input v-model="form.sku" type="text" maxlength="64" />
           </label>
@@ -196,14 +196,14 @@ function validityLabel(p: Product): string {
         </button>
       </form>
 
-      <!-- ── Product list ───────────────────────────────────────────── -->
-      <div class="pr-panel">
+      <!-- ── Product list (hidden while the form is open) ───────────── -->
+      <div v-if="!showForm" class="pr-panel">
         <div class="pr-list-head">
           <h2>{{ t('adminProducts.existing') }}</h2>
           <div class="pr-list-tools">
             <input v-model="search" type="search" :placeholder="t('adminProducts.searchPlaceholder')" class="search" />
-            <button type="button" class="btn-submit btn-new" @click="showForm && editingId === null ? closeForm() : openNew()">
-              {{ showForm && editingId === null ? t('adminUsers.cancel') : '+ ' + t('adminProducts.newProduct') }}
+            <button type="button" class="btn-submit btn-new" @click="openNew()">
+              {{ '+ ' + t('adminProducts.newProduct') }}
             </button>
           </div>
         </div>

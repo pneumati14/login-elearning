@@ -80,22 +80,7 @@ async function onDelete(f: FeeTitle): Promise<void> {
       </div>
 
       <div class="ft-panel">
-        <div class="ft-list-head">
-          <h2>{{ t('adminFeeTitles.existing') }}</h2>
-          <div class="ft-list-tools">
-            <input
-              v-model="search"
-              type="search"
-              :placeholder="t('adminFeeTitles.searchPlaceholder')"
-              class="search"
-            />
-            <button type="button" class="btn-submit btn-new" @click="showForm ? closeForm() : openCreate()">
-              {{ showForm ? t('adminUsers.cancel') : '+ ' + t('adminFeeTitles.newTitle') }}
-            </button>
-          </div>
-        </div>
-
-        <!-- ── Create / edit form ────────────────────────────────────── -->
+        <!-- ── Create / edit form (replaces the list while open) ─────── -->
         <form v-if="showForm" class="ft-form" @submit.prevent="onSubmit">
           <h3>{{ null === editingId ? t('adminFeeTitles.newTitle') : t('admin.edit') }}</h3>
           <label class="field">
@@ -111,50 +96,68 @@ async function onDelete(f: FeeTitle): Promise<void> {
           </div>
         </form>
 
-        <p v-if="loading" class="state">{{ t('adminFeeTitles.loading') }}</p>
+        <!-- ── List (hidden while the form is open) ──────────────────── -->
+        <template v-else>
+          <div class="ft-list-head">
+            <h2>{{ t('adminFeeTitles.existing') }}</h2>
+            <div class="ft-list-tools">
+              <input
+                v-model="search"
+                type="search"
+                :placeholder="t('adminFeeTitles.searchPlaceholder')"
+                class="search"
+              />
+              <button type="button" class="btn-submit btn-new" @click="openCreate()">
+                {{ '+ ' + t('adminFeeTitles.newTitle') }}
+              </button>
+            </div>
+          </div>
 
-        <div v-else-if="error" class="state state--error">
-          <strong>{{ t('adminFeeTitles.loadError') }}</strong>
-          <button type="button" class="btn-retry" @click="store.fetchFeeTitles()">{{ t('common.retry') }}</button>
-        </div>
+          <p v-if="loading" class="state">{{ t('adminFeeTitles.loading') }}</p>
 
-        <p v-else-if="feeTitles.length === 0" class="state">{{ t('adminFeeTitles.empty') }}</p>
+          <div v-else-if="error" class="state state--error">
+            <strong>{{ t('adminFeeTitles.loadError') }}</strong>
+            <button type="button" class="btn-retry" @click="store.fetchFeeTitles()">{{ t('common.retry') }}</button>
+          </div>
 
-        <p v-else-if="filtered.length === 0" class="state">{{ t('adminFeeTitles.noMatches') }}</p>
+          <p v-else-if="feeTitles.length === 0" class="state">{{ t('adminFeeTitles.empty') }}</p>
 
-        <div v-else class="ft-table-wrap">
-          <table class="ft-table">
-            <thead>
-              <tr>
-                <th>{{ t('adminFeeTitles.name') }}</th>
-                <th class="col-actions"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="f in filtered" :key="f.id">
-                <td>
-                  <span class="ft-name">{{ f.name }}</span>
-                </td>
-                <td class="col-actions">
-                  <div class="row-actions">
-                    <button type="button" class="btn-icon" :title="t('admin.edit')" :aria-label="t('admin.edit')" @click="openEdit(f)">
-                      <IconEdit />
-                    </button>
-                    <button
-                      type="button"
-                      class="btn-icon btn-icon--danger"
-                      :title="t('admin.delete')"
-                      :aria-label="t('admin.delete')"
-                      @click="onDelete(f)"
-                    >
-                      <IconDelete />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+          <p v-else-if="filtered.length === 0" class="state">{{ t('adminFeeTitles.noMatches') }}</p>
+
+          <div v-else class="ft-table-wrap">
+            <table class="ft-table">
+              <thead>
+                <tr>
+                  <th>{{ t('adminFeeTitles.name') }}</th>
+                  <th class="col-actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="f in filtered" :key="f.id">
+                  <td>
+                    <span class="ft-name">{{ f.name }}</span>
+                  </td>
+                  <td class="col-actions">
+                    <div class="row-actions">
+                      <button type="button" class="btn-icon" :title="t('admin.edit')" :aria-label="t('admin.edit')" @click="openEdit(f)">
+                        <IconEdit />
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-icon btn-icon--danger"
+                        :title="t('admin.delete')"
+                        :aria-label="t('admin.delete')"
+                        @click="onDelete(f)"
+                      >
+                        <IconDelete />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
       </div>
     </div>
   </section>

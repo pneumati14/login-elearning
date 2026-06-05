@@ -11,20 +11,20 @@ const { l } = useLocalized()
 const store = usePublicationsStore()
 const { publications, loading, error } = storeToRefs(store)
 
-// ── New publication form ─────────────────────────────────────────────
+// ── New publication form (replaces the list while open) ──────────────
 const form = reactive({
   title: emptyLocalized(),
   topic: emptyLocalized(),
   author: emptyLocalized(),
   description: emptyLocalized(),
 })
+const showCreate = ref(false)
 const selectedFile = ref<File | null>(null)
 const fileInputEl = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
 const formError = ref<string | null>(null)
-const formSuccess = ref<string | null>(null)
 
-// ── Inline editor — one row open at a time ───────────────────────────
+// ── Editor — replaces the list while open ────────────────────────────
 const editingId = ref<number | null>(null)
 const editForm = reactive({
   title: emptyLocalized(),
@@ -43,9 +43,22 @@ function onFileChange(event: Event) {
   selectedFile.value = (event.target as HTMLInputElement).files?.[0] ?? null
 }
 
+function openCreate() {
+  form.title = emptyLocalized()
+  form.topic = emptyLocalized()
+  form.author = emptyLocalized()
+  form.description = emptyLocalized()
+  selectedFile.value = null
+  formError.value = null
+  showCreate.value = true
+}
+
+function closeCreate() {
+  showCreate.value = false
+}
+
 async function onUpload() {
   formError.value = null
-  formSuccess.value = null
 
   const file = selectedFile.value
   if (!form.title.en.trim()) {
@@ -70,13 +83,13 @@ async function onUpload() {
   uploading.value = false
 
   if (result.ok) {
-    formSuccess.value = t('adminPublications.uploaded')
     form.title = emptyLocalized()
     form.topic = emptyLocalized()
     form.author = emptyLocalized()
     form.description = emptyLocalized()
     selectedFile.value = null
     if (fileInputEl.value) fileInputEl.value.value = ''
+    showCreate.value = false
   } else {
     formError.value = result.error ?? t('adminPublications.uploadFailed')
   }
@@ -153,8 +166,8 @@ function formatDate(iso: string): string {
         <p>{{ t('adminPublications.subtitle') }}</p>
       </div>
 
-      <!-- ── New publication ───────────────────────────────────────── -->
-      <form class="ap-panel" @submit.prevent="onUpload">
+      <!-- ── New publication (replaces the list while open) ────────── -->
+      <form v-if="showCreate" class="ap-panel" @submit.prevent="onUpload">
         <h2>{{ t('adminPublications.newPublication') }}</h2>
         <LocalizedInput v-model="form.title" :label="t('admin.title')" required />
         <label class="field">
@@ -178,16 +191,52 @@ function formatDate(iso: string): string {
         />
 
         <p v-if="formError" class="msg msg--error">{{ formError }}</p>
-        <p v-if="formSuccess" class="msg msg--success">{{ formSuccess }}</p>
 
-        <button type="submit" class="btn-submit" :disabled="uploading">
-          {{ uploading ? t('account.uploading') : t('adminPublications.upload') }}
-        </button>
+        <div class="pub-edit-actions">
+          <button type="submit" class="btn-submit" :disabled="uploading">
+            {{ uploading ? t('account.uploading') : t('adminPublications.upload') }}
+          </button>
+          <button type="button" class="btn-ghost" @click="closeCreate">{{ t('adminUsers.cancel') }}</button>
+        </div>
       </form>
 
+      <!-- ── Editor (replaces the list while open) ─────────────────── -->
+      <div v-else-if="editingId !== null" class="ap-panel">
+        <h2>{{ t('admin.edit') }}</h2>
+
+        <LocalizedInput v-model="editForm.title" :label="t('admin.title')" required />
+        <LocalizedInput v-model="editForm.topic" :label="t('adminPublications.topic')" />
+        <LocalizedInput v-model="editForm.author" :label="t('adminPublications.author')" />
+        <LocalizedInput
+          v-model="editForm.description"
+          :label="t('adminPublications.descriptionOptional')"
+          multiline
+        />
+        <label class="field">
+          <span class="field-label">{{ t('adminPublications.replaceFile') }}</span>
+          <input :key="editFileKey" type="file" accept="application/pdf" @change="onReplaceFileChange" />
+        </label>
+
+        <p v-if="editError" class="msg msg--error">{{ editError }}</p>
+
+        <div class="pub-edit-actions">
+          <button type="button" class="btn-submit" :disabled="editSaving" @click="onSave">
+            {{ editSaving ? t('admin.saving') : t('admin.save') }}
+          </button>
+          <button type="button" class="btn-ghost" @click="closeEdit">
+            {{ t('adminUsers.cancel') }}
+          </button>
+        </div>
+      </div>
+
       <!-- ── Existing publications — list view ─────────────────────── -->
-      <div class="ap-panel">
-        <h2>{{ t('adminPublications.existing') }}</h2>
+      <div v-else class="ap-panel">
+        <div class="ap-list-head">
+          <h2>{{ t('adminPublications.existing') }}</h2>
+          <button type="button" class="btn-submit" @click="openCreate">
+            {{ '+ ' + t('adminPublications.newPublication') }}
+          </button>
+        </div>
 
         <p v-if="loading" class="state">{{ t('common.loading') }}</p>
 
@@ -217,52 +266,11 @@ function formatDate(iso: string): string {
                 <a :href="pub.fileUrl" target="_blank" rel="noopener" class="btn-ghost">
                   {{ t('admin.open') }}
                 </a>
-                <button
-                  type="button"
-                  class="btn-ghost"
-                  @click="editingId === pub.id ? closeEdit() : openEdit(pub)"
-                >
+                <button type="button" class="btn-ghost" @click="openEdit(pub)">
                   {{ t('admin.edit') }}
                 </button>
                 <button type="button" class="btn-delete" @click="onDelete(pub)">
                   {{ t('admin.delete') }}
-                </button>
-              </div>
-            </div>
-
-            <!-- Inline editor for the selected row. -->
-            <div v-if="editingId === pub.id" class="pub-edit">
-              <LocalizedInput v-model="editForm.title" :label="t('admin.title')" required />
-              <LocalizedInput v-model="editForm.topic" :label="t('adminPublications.topic')" />
-              <LocalizedInput v-model="editForm.author" :label="t('adminPublications.author')" />
-              <LocalizedInput
-                v-model="editForm.description"
-                :label="t('adminPublications.descriptionOptional')"
-                multiline
-              />
-              <label class="field">
-                <span class="field-label">{{ t('adminPublications.replaceFile') }}</span>
-                <input
-                  :key="editFileKey"
-                  type="file"
-                  accept="application/pdf"
-                  @change="onReplaceFileChange"
-                />
-              </label>
-
-              <p v-if="editError" class="msg msg--error">{{ editError }}</p>
-
-              <div class="pub-edit-actions">
-                <button
-                  type="button"
-                  class="btn-submit"
-                  :disabled="editSaving"
-                  @click="onSave"
-                >
-                  {{ editSaving ? t('admin.saving') : t('admin.save') }}
-                </button>
-                <button type="button" class="btn-ghost" @click="closeEdit">
-                  {{ t('adminUsers.cancel') }}
                 </button>
               </div>
             </div>
@@ -319,6 +327,14 @@ function formatDate(iso: string): string {
   color: var(--login-secondary, #0c1c40);
   font-size: 1.25rem;
   font-weight: 700;
+}
+
+.ap-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .field {

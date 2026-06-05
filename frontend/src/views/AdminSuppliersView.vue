@@ -96,22 +96,7 @@ async function onDelete(s: Supplier): Promise<void> {
       </div>
 
       <div class="sup-panel">
-        <div class="sup-list-head">
-          <h2>{{ t('adminSuppliers.existing') }}</h2>
-          <div class="sup-list-tools">
-            <input
-              v-model="search"
-              type="search"
-              :placeholder="t('adminSuppliers.searchPlaceholder')"
-              class="search"
-            />
-            <button type="button" class="btn-submit btn-new" @click="showForm ? closeForm() : openCreate()">
-              {{ showForm ? t('adminUsers.cancel') : '+ ' + t('adminSuppliers.newSupplier') }}
-            </button>
-          </div>
-        </div>
-
-        <!-- ── Create / edit form ────────────────────────────────────── -->
+        <!-- ── Create / edit form (replaces the list while open) ─────── -->
         <form v-if="showForm" class="sup-form" @submit.prevent="onSubmit">
           <h3>{{ null === editingId ? t('adminSuppliers.newSupplier') : t('admin.edit') }}</h3>
           <div class="grid">
@@ -149,63 +134,81 @@ async function onDelete(s: Supplier): Promise<void> {
           </div>
         </form>
 
-        <p v-if="loading" class="state">{{ t('adminSuppliers.loading') }}</p>
+        <!-- ── List (hidden while the form is open) ──────────────────── -->
+        <template v-else>
+          <div class="sup-list-head">
+            <h2>{{ t('adminSuppliers.existing') }}</h2>
+            <div class="sup-list-tools">
+              <input
+                v-model="search"
+                type="search"
+                :placeholder="t('adminSuppliers.searchPlaceholder')"
+                class="search"
+              />
+              <button type="button" class="btn-submit btn-new" @click="openCreate()">
+                {{ '+ ' + t('adminSuppliers.newSupplier') }}
+              </button>
+            </div>
+          </div>
 
-        <div v-else-if="error" class="state state--error">
-          <strong>{{ t('adminSuppliers.loadError') }}</strong>
-          <button type="button" class="btn-retry" @click="store.fetchSuppliers()">{{ t('common.retry') }}</button>
-        </div>
+          <p v-if="loading" class="state">{{ t('adminSuppliers.loading') }}</p>
 
-        <p v-else-if="suppliers.length === 0" class="state">{{ t('adminSuppliers.empty') }}</p>
+          <div v-else-if="error" class="state state--error">
+            <strong>{{ t('adminSuppliers.loadError') }}</strong>
+            <button type="button" class="btn-retry" @click="store.fetchSuppliers()">{{ t('common.retry') }}</button>
+          </div>
 
-        <p v-else-if="filtered.length === 0" class="state">{{ t('adminSuppliers.noMatches') }}</p>
+          <p v-else-if="suppliers.length === 0" class="state">{{ t('adminSuppliers.empty') }}</p>
 
-        <div v-else class="sup-table-wrap">
-          <table class="sup-table">
-            <thead>
-              <tr>
-                <th>{{ t('adminSuppliers.name') }}</th>
-                <th>{{ t('adminSuppliers.contactName') }}</th>
-                <th>{{ t('adminCustomers.email') }}</th>
-                <th>{{ t('adminCustomers.phone') }}</th>
-                <th>{{ t('adminSuppliers.colStatus') }}</th>
-                <th class="col-actions"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="s in filtered" :key="s.id" :class="{ 'is-inactive': !s.isActive }">
-                <td>
-                  <span class="sup-name">{{ s.name }}</span>
-                  <span v-if="s.notes" class="sup-notes">{{ s.notes }}</span>
-                </td>
-                <td>{{ s.contactName || '—' }}</td>
-                <td>{{ s.email || '—' }}</td>
-                <td>{{ s.phone || '—' }}</td>
-                <td>
-                  <span class="badge" :class="s.isActive ? 'badge--active' : 'badge--inactive'">
-                    {{ s.isActive ? t('adminSuppliers.active') : t('adminSuppliers.inactive') }}
-                  </span>
-                </td>
-                <td class="col-actions">
-                  <div class="row-actions">
-                    <button type="button" class="btn-icon" :title="t('admin.edit')" :aria-label="t('admin.edit')" @click="openEdit(s)">
-                      <IconEdit />
-                    </button>
-                    <button
-                      type="button"
-                      class="btn-icon btn-icon--danger"
-                      :title="t('admin.delete')"
-                      :aria-label="t('admin.delete')"
-                      @click="onDelete(s)"
-                    >
-                      <IconDelete />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+          <p v-else-if="filtered.length === 0" class="state">{{ t('adminSuppliers.noMatches') }}</p>
+
+          <div v-else class="sup-table-wrap">
+            <table class="sup-table">
+              <thead>
+                <tr>
+                  <th>{{ t('adminSuppliers.name') }}</th>
+                  <th>{{ t('adminSuppliers.contactName') }}</th>
+                  <th>{{ t('adminCustomers.email') }}</th>
+                  <th>{{ t('adminCustomers.phone') }}</th>
+                  <th>{{ t('adminSuppliers.colStatus') }}</th>
+                  <th class="col-actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="s in filtered" :key="s.id" :class="{ 'is-inactive': !s.isActive }">
+                  <td>
+                    <span class="sup-name">{{ s.name }}</span>
+                    <span v-if="s.notes" class="sup-notes">{{ s.notes }}</span>
+                  </td>
+                  <td>{{ s.contactName || '—' }}</td>
+                  <td>{{ s.email || '—' }}</td>
+                  <td>{{ s.phone || '—' }}</td>
+                  <td>
+                    <span class="badge" :class="s.isActive ? 'badge--active' : 'badge--inactive'">
+                      {{ s.isActive ? t('adminSuppliers.active') : t('adminSuppliers.inactive') }}
+                    </span>
+                  </td>
+                  <td class="col-actions">
+                    <div class="row-actions">
+                      <button type="button" class="btn-icon" :title="t('admin.edit')" :aria-label="t('admin.edit')" @click="openEdit(s)">
+                        <IconEdit />
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-icon btn-icon--danger"
+                        :title="t('admin.delete')"
+                        :aria-label="t('admin.delete')"
+                        @click="onDelete(s)"
+                      >
+                        <IconDelete />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
       </div>
     </div>
   </section>
