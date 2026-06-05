@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import type { AppLocale } from '@/i18n'
+import AppSelect from '@/components/AppSelect.vue'
 
 const { t, locale } = useI18n()
 const auth = useAuthStore()
@@ -21,9 +22,16 @@ const languages: { code: AppLocale; flag: string; label: string }[] = [
   { code: 'es', flag: '🇪🇸', label: 'Español' },
 ]
 
-function chooseLanguage(code: AppLocale) {
-  auth.setLanguage(code)
-}
+const languageOptions = languages.map((lang) => ({
+  value: lang.code,
+  label: `${lang.flag} ${lang.label}`,
+}))
+
+// AppSelect drives the same persisted preference the button grid did.
+const selectedLanguage = computed<AppLocale>({
+  get: () => locale.value as AppLocale,
+  set: (code) => auth.setLanguage(code),
+})
 
 const initials = computed(() => {
   const u = user.value
@@ -145,18 +153,8 @@ async function onChangePassword() {
       <div class="account-panel">
         <h2>{{ t('account.languageTitle') }}</h2>
         <p class="lang-hint">{{ t('account.languageHint') }}</p>
-        <div class="lang-options">
-          <button
-            v-for="lang in languages"
-            :key="lang.code"
-            type="button"
-            class="lang-choice"
-            :class="{ active: locale === lang.code }"
-            @click="chooseLanguage(lang.code)"
-          >
-            <span class="lang-flag">{{ lang.flag }}</span>
-            <span>{{ lang.label }}</span>
-          </button>
+        <div class="lang-select">
+          <AppSelect v-model="selectedLanguage" :options="languageOptions" />
         </div>
       </div>
 
@@ -377,39 +375,12 @@ async function onChangePassword() {
   line-height: 1.5;
 }
 
-.lang-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.7rem;
+.lang-select {
+  max-width: 280px;
 }
 
-.lang-choice {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.7rem 1.2rem;
-  background: #fff;
-  border: 1px solid #d4dae6;
-  border-radius: 0.6rem;
-  color: var(--login-secondary, #0c1c40);
-  font-size: 0.98rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.lang-choice:hover {
-  border-color: var(--login-secondary, #0c1c40);
-}
-
-.lang-choice.active {
-  border-color: var(--login-primary, #ed2044);
-  background: #fdeef1;
-  color: var(--login-primary, #ed2044);
-}
-
-.lang-flag {
-  font-size: 1.3rem;
-  line-height: 1;
+.lang-select :deep(.app-select) {
+  width: 100%;
 }
 
 @media (max-width: 575.98px) {
