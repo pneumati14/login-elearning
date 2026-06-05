@@ -166,6 +166,7 @@ final class AdminBillingController extends AbstractController
             'customerName' => $b->getCustomer()->getName(),
             'opportunityId' => $b->getOpportunity()?->getId(),
             'opportunityTitle' => $b->getOpportunityTitle(),
+            'cardName' => $b->getCardName(),
             'name' => $b->getName(),
             'quantity' => $b->getQuantity(),
             'unitPrice' => $b->getUnitPrice(),

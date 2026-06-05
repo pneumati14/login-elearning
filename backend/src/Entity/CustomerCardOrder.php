@@ -22,11 +22,11 @@ class CustomerCardOrder
     public const STATUS_PROFORMA_PAID = 'proforma_paid';
     public const STATUS_PROCUREMENT = 'procurement';
     public const STATUS_SHIPPING = 'shipping';
-    public const STATUS_PAID = 'paid';
+    public const STATUS_RECEIVED = 'received';
 
     /**
      * Workflow order: quote → ordered → proforma → proforma paid →
-     * procurement → shipping → paid.
+     * procurement → shipping → received.
      */
     public const STATUSES = [
         self::STATUS_QUOTE,
@@ -35,7 +35,7 @@ class CustomerCardOrder
         self::STATUS_PROFORMA_PAID,
         self::STATUS_PROCUREMENT,
         self::STATUS_SHIPPING,
-        self::STATUS_PAID,
+        self::STATUS_RECEIVED,
     ];
 
     #[ORM\Id]

@@ -7,17 +7,19 @@ use Doctrine\ORM\Mapping as ORM;
 
 /**
  * One line to invoice on the billing board. Created automatically when an
- * [[Opportunity]] enters a won stage: every quote line becomes a billing
- * item (a lineless deal becomes a single item from its title and value).
+ * [[Opportunity]] enters a won stage (every quote line becomes a billing
+ * item; a lineless deal becomes a single item from its title and value)
+ * and when a [[CustomerCardOrder]] reaches the received status.
  * The name, quantity and unit price are snapshotted, so later edits to the
  * deal do not rewrite what was agreed; the rows themselves stay editable
  * here. Removed with the customer (onDelete CASCADE) but kept when the
- * source opportunity is deleted (FK set null).
+ * source opportunity or card order is deleted (FK set null).
  */
 #[ORM\Entity(repositoryClass: BillingItemRepository::class)]
 #[ORM\Table(name: 'billing_item')]
 #[ORM\Index(name: 'idx_billing_item_customer', columns: ['customer_id'])]
 #[ORM\Index(name: 'idx_billing_item_opportunity', columns: ['opportunity_id'])]
+#[ORM\Index(name: 'idx_billing_item_card_order', columns: ['card_order_id'])]
 class BillingItem
 {
     public const STATUS_PENDING = 'pending';
@@ -41,6 +43,15 @@ class BillingItem
     /** Kept for display even after the opportunity row is deleted. */
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $opportunityTitle = null;
+
+    /** The received card order this item was snapshotted from; null otherwise. */
+    #[ORM\ManyToOne(targetEntity: CustomerCardOrder::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?CustomerCardOrder $cardOrder = null;
+
+    /** Card type label, kept for display even after the card is deleted. */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $cardName = null;
 
     #[ORM\Column(length: 255)]
     private string $name = '';
@@ -106,6 +117,24 @@ class BillingItem
     public function getOpportunityTitle(): ?string
     {
         return $this->opportunityTitle;
+    }
+
+    public function getCardOrder(): ?CustomerCardOrder
+    {
+        return $this->cardOrder;
+    }
+
+    public function setCardOrder(?CustomerCardOrder $cardOrder): static
+    {
+        $this->cardOrder = $cardOrder;
+        $this->cardName = $cardOrder?->getCard()->getType();
+
+        return $this;
+    }
+
+    public function getCardName(): ?string
+    {
+        return $this->cardName;
     }
 
     public function getName(): string

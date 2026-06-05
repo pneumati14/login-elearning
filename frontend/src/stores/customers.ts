@@ -109,7 +109,7 @@ export type CardOrderStatus =
   | 'proforma_paid'
   | 'procurement'
   | 'shipping'
-  | 'paid'
+  | 'received'
 
 export const CARD_ORDER_STATUSES: CardOrderStatus[] = [
   'quote',
@@ -118,7 +118,7 @@ export const CARD_ORDER_STATUSES: CardOrderStatus[] = [
   'proforma_paid',
   'procurement',
   'shipping',
-  'paid',
+  'received',
 ]
 
 /** One order placed for a customer card (catalogue product + quantity). */

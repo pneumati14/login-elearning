@@ -2,11 +2,13 @@
 
 namespace App\Controller;
 
+use App\Entity\BillingItem;
 use App\Entity\Customer;
 use App\Entity\CustomerCard;
 use App\Entity\CustomerCardOrder;
 use App\Entity\Product;
 use App\Entity\Supplier;
+use App\Repository\BillingItemRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -26,6 +28,7 @@ final class AdminCustomerCardController extends AbstractController
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
+        private readonly BillingItemRepository $billingItems,
     ) {
     }
 
@@ -124,6 +127,7 @@ final class AdminCustomerCardController extends AbstractController
         }
 
         $this->entityManager->persist($order);
+        $this->snapshotBillingItemIfReceived($order);
         $card->touch();
         $customer = $card->getCustomer();
         $customer->touch();
@@ -151,6 +155,7 @@ final class AdminCustomerCardController extends AbstractController
             return $this->json(['error' => $error], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        $this->snapshotBillingItemIfReceived($order);
         $order->getCard()->touch();
         $customer = $order->getCard()->getCustomer();
         $customer->touch();
@@ -179,6 +184,7 @@ final class AdminCustomerCardController extends AbstractController
         }
 
         $order->setStatus($status);
+        $this->snapshotBillingItemIfReceived($order);
         $order->getCard()->touch();
         $customer = $order->getCard()->getCustomer();
         $customer->touch();
@@ -285,6 +291,33 @@ final class AdminCustomerCardController extends AbstractController
         }
 
         return null;
+    }
+
+    /**
+     * A received order lands on the billing board right away: one billing
+     * item from the snapshotted product, quantity and sale price. Skipped
+     * when the order already produced an item — moving it out of received
+     * and back must not duplicate the row (mirrors won opportunities).
+     * The caller flushes.
+     */
+    private function snapshotBillingItemIfReceived(CustomerCardOrder $order): void
+    {
+        if (CustomerCardOrder::STATUS_RECEIVED !== $order->getStatus()) {
+            return;
+        }
+        if (null !== $order->getId() && $this->billingItems->existsForCardOrder($order)) {
+            return;
+        }
+
+        $item = (new BillingItem())
+            ->setCustomer($order->getCard()->getCustomer())
+            ->setCardOrder($order)
+            ->setName($order->getProductName())
+            ->setQuantity((string) $order->getQuantity())
+            ->setUnitPrice($order->getUnitSalePrice() ?? '0')
+            ->setCurrency($order->getCurrency())
+            ->setWonAt(new \DateTimeImmutable('today'));
+        $this->entityManager->persist($item);
     }
 
     private function findCustomer(int $customerId): ?Customer

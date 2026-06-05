@@ -221,7 +221,7 @@ async function onDelete(item: BillingItem): Promise<void> {
               <thead>
                 <tr>
                   <th>{{ t('adminBilling.colCustomer') }}</th>
-                  <th>{{ t('adminBilling.colDeal') }}</th>
+                  <th>{{ t('adminBilling.colSource') }}</th>
                   <th>{{ t('adminBilling.colItem') }}</th>
                   <th class="num">{{ t('adminBilling.colQuantity') }}</th>
                   <th class="num">{{ t('adminBilling.colUnitPrice') }}</th>
@@ -241,7 +241,7 @@ async function onDelete(item: BillingItem): Promise<void> {
                       {{ item.customerName }}
                     </RouterLink>
                   </td>
-                  <td class="bill-deal">{{ item.opportunityTitle ?? '—' }}</td>
+                  <td class="bill-deal">{{ item.opportunityTitle ?? item.cardName ?? '—' }}</td>
 
                   <template v-if="editId === item.id">
                     <td><input v-model="editFields.name" type="text" class="bill-edit-input" /></td>
