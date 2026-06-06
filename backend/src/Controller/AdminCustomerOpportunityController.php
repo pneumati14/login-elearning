@@ -303,6 +303,13 @@ final class AdminCustomerOpportunityController extends AbstractController
         if (\array_key_exists('currency', $payload)) {
             $o->setCurrency((string) $payload['currency']);
         }
+        if (\array_key_exists('nature', $payload)) {
+            $nature = (string) $payload['nature'];
+            if (!\in_array($nature, Opportunity::NATURES, true)) {
+                return 'Érvénytelen jelleg.';
+            }
+            $o->setNature($nature);
+        }
         if (\array_key_exists('expectedCloseDate', $payload)) {
             $o->setExpectedCloseDate($this->parseDate($payload['expectedCloseDate']));
         }
@@ -622,6 +629,7 @@ final class AdminCustomerOpportunityController extends AbstractController
             'quoteNumber' => $o->getQuoteNumber(),
             'value' => $o->getValue(),
             'currency' => $o->getCurrency(),
+            'nature' => $o->getNature(),
             'expectedCloseDate' => $o->getExpectedCloseDate()?->format('Y-m-d'),
             'closedAt' => $o->getClosedAt()?->format(\DateTimeInterface::ATOM),
             'notes' => $o->getNotes(),

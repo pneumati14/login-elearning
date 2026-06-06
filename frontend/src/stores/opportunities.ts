@@ -59,6 +59,10 @@ export interface EffortEstimateFields {
   unit: EffortUnit
 }
 
+export const NATURES = ['new', 'upsell'] as const
+/** New business vs. an upsell at an existing customer. */
+export type OpportunityNature = (typeof NATURES)[number]
+
 export interface OpportunityDocument {
   id: number
   originalName: string
@@ -74,6 +78,7 @@ export interface Opportunity {
   quoteNumber: string | null
   value: string | null
   currency: Currency
+  nature: OpportunityNature
   expectedCloseDate: string | null
   closedAt: string | null
   notes: string | null
@@ -106,6 +111,7 @@ export interface OpportunityFields {
   stageId: number | null
   value: string | null
   currency: Currency
+  nature: OpportunityNature
   expectedCloseDate: string | null
   contactId: number | null
   notes: string | null
@@ -121,6 +127,7 @@ export function emptyOpportunityFields(): OpportunityFields {
     stageId: null,
     value: null,
     currency: 'HUF',
+    nature: 'new',
     expectedCloseDate: null,
     contactId: null,
     notes: null,

@@ -35,6 +35,7 @@ const filterTypeId = ref<number | null>(null)
 const filterUserId = ref<number | null>(null)
 const filterCurrency = ref<string>('HUF')
 const filterHorizon = ref<number>(6)
+const filterNature = ref<string | null>(null)
 const selectedStageIds = ref<number[]>([])
 
 // Only users who can actually own customers (sales staff).
@@ -60,6 +61,11 @@ const currencySelectOptions: { value: string; label: string }[] = CURRENCIES.map
 const horizonSelectOptions = computed<{ value: number; label: string }[]>(() =>
   HORIZONS.map((h) => ({ value: h, label: t('adminReports.horizonOption', { n: h }) })),
 )
+const natureSelectOptions = computed<{ value: string | null; label: string }[]>(() => [
+  { value: null, label: t('adminReports.filterAll') },
+  { value: 'new', label: t('adminCustomers.oppNature_new') },
+  { value: 'upsell', label: t('adminCustomers.oppNature_upsell') },
+])
 
 // Stage chips: only meaningful when a single pipeline is selected.
 const stageOptions = computed(() => {
@@ -78,6 +84,7 @@ function reload(): void {
     typeId: filterTypeId.value,
     userId: filterUserId.value,
     stageIds: selectedStageIds.value,
+    nature: filterNature.value,
   })
 }
 
@@ -91,7 +98,7 @@ onMounted(() => {
 watch(filterTypeId, () => {
   selectedStageIds.value = []
 })
-watch([filterTypeId, filterUserId, selectedStageIds], reload)
+watch([filterTypeId, filterUserId, selectedStageIds, filterNature], reload)
 
 // ── Formatting ───────────────────────────────────────────────────────────
 const fmtMoneyRaw = useMoneyFormat()
@@ -456,6 +463,10 @@ const ownersHeight = computed(() => `${Math.max(220, 52 * (report.value?.owners.
           <label class="rep-filter">
             <span>{{ t('adminReports.filterUser') }}</span>
             <AppSelect v-model="filterUserId" :options="userSelectOptions" />
+          </label>
+          <label class="rep-filter">
+            <span>{{ t('adminReports.filterNature') }}</span>
+            <AppSelect v-model="filterNature" :options="natureSelectOptions" />
           </label>
           <label class="rep-filter">
             <span>{{ t('adminReports.filterCurrency') }}</span>

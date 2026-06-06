@@ -25,6 +25,10 @@ class Opportunity
     public const CURRENCIES = ['HUF', 'EUR', 'USD'];
     public const DEFAULT_CURRENCY = 'HUF';
 
+    public const NATURE_NEW = 'new';
+    public const NATURE_UPSELL = 'upsell';
+    public const NATURES = [self::NATURE_NEW, self::NATURE_UPSELL];
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -57,6 +61,13 @@ class Opportunity
 
     #[ORM\Column(length: 3)]
     private string $currency = self::DEFAULT_CURRENCY;
+
+    /**
+     * New business or an upsell at an existing customer. Set manually on
+     * the form; the pipeline report can filter on it.
+     */
+    #[ORM\Column(length: 16)]
+    private string $nature = self::NATURE_NEW;
 
     #[ORM\Column(type: 'date_immutable', nullable: true)]
     private ?\DateTimeImmutable $expectedCloseDate = null;
@@ -234,6 +245,18 @@ class Opportunity
     {
         $currency = strtoupper(trim($currency));
         $this->currency = \in_array($currency, self::CURRENCIES, true) ? $currency : self::DEFAULT_CURRENCY;
+
+        return $this;
+    }
+
+    public function getNature(): string
+    {
+        return $this->nature;
+    }
+
+    public function setNature(string $nature): static
+    {
+        $this->nature = \in_array($nature, self::NATURES, true) ? $nature : self::NATURE_NEW;
 
         return $this;
     }

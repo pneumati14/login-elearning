@@ -26,8 +26,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  * Also returns an `owners` breakdown: open-deal totals per responsible
  * salesperson. Optional filters: typeId (one pipeline), userId (the
  * salesperson currently responsible, derived from the active sales
- * assignment) and stageIds (comma-separated stage ids — only deals
- * currently sitting in one of them).
+ * assignment), stageIds (comma-separated stage ids — only deals
+ * currently sitting in one of them) and nature (new/upsell).
  */
 #[Route('/api/admin/reports', name: 'api_admin_reports_')]
 #[IsGranted('ROLE_SALES')]
@@ -54,6 +54,10 @@ final class AdminReportController extends AbstractController
             ->andWhere('c.deletedAt IS NULL');
         if (null !== $typeId) {
             $qb->andWhere('t.id = :typeId')->setParameter('typeId', $typeId);
+        }
+        $nature = (string) $request->query->get('nature', '');
+        if (\in_array($nature, Opportunity::NATURES, true)) {
+            $qb->andWhere('o.nature = :nature')->setParameter('nature', $nature);
         }
         /** @var Opportunity[] $all */
         $all = $qb->getQuery()->getResult();

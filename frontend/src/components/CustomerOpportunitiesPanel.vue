@@ -15,6 +15,7 @@ import {
   type EffortEstimateFields,
   type EffortType,
   type EffortUnit,
+  type OpportunityNature,
 } from '@/stores/opportunities'
 import { useOpportunityTypesStore, typeStatus, type OpportunityType } from '@/stores/opportunityTypes'
 import { useProductsStore } from '@/stores/products'
@@ -54,8 +55,13 @@ function stagesForType(typeId: number) {
   return typesStore.types.find((tp) => tp.id === typeId)?.stages ?? []
 }
 
+// Kanban nature filter: all deals, only new business or only upsells.
+const natureFilter = ref<OpportunityNature | null>(null)
+
 const boardOpportunities = computed(() =>
-  opportunities.value.filter((o) => o.typeId === selectedTypeId.value),
+  opportunities.value.filter(
+    (o) => o.typeId === selectedTypeId.value && (null === natureFilter.value || o.nature === natureFilter.value),
+  ),
 )
 
 function columnOpportunities(stageId: number): Opportunity[] {
@@ -111,6 +117,7 @@ function openEdit(o: Opportunity): void {
   form.stageId = o.stageId
   form.value = o.value
   form.currency = o.currency
+  form.nature = o.nature
   form.expectedCloseDate = o.expectedCloseDate
   form.contactId = o.contactId
   form.notes = o.notes
@@ -337,6 +344,14 @@ const formStageSelectOptions = computed<{ value: number; label: string }[]>(() =
   formStages.value.map((s) => ({ value: s.id, label: s.name })),
 )
 const currencySelectOptions = CURRENCIES.map((c) => ({ value: c, label: c }))
+const natureSelectOptions = computed<{ value: OpportunityNature; label: string }[]>(() => [
+  { value: 'new', label: t('adminCustomers.oppNature_new') },
+  { value: 'upsell', label: t('adminCustomers.oppNature_upsell') },
+])
+const natureFilterOptions = computed<{ value: OpportunityNature | null; label: string }[]>(() => [
+  { value: null, label: t('adminCustomers.oppNatureAll') },
+  ...natureSelectOptions.value,
+])
 const contactSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
   { value: null, label: t('adminCustomers.oppNoContact') },
   ...props.customer.contacts.map((ct) => ({
@@ -380,6 +395,10 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
 
         <div class="opp-head-right">
           <label v-if="view === 'kanban'" class="pipeline-select">
+            <span>{{ t('adminCustomers.oppNature') }}</span>
+            <AppSelect v-model="natureFilter" :options="natureFilterOptions" />
+          </label>
+          <label v-if="view === 'kanban'" class="pipeline-select">
             <span>{{ t('adminCustomers.oppPipeline') }}</span>
             <AppSelect v-model="selectedTypeId" :options="pipelineSelectOptions" />
           </label>
@@ -408,6 +427,10 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
           <label class="field">
             <span>{{ t('adminCustomers.oppStage') }}</span>
             <AppSelect v-model="form.stageId" :options="formStageSelectOptions" />
+          </label>
+          <label class="field">
+            <span>{{ t('adminCustomers.oppNature') }}</span>
+            <AppSelect v-model="form.nature" :options="natureSelectOptions" />
           </label>
           <label class="field">
             <span>{{ t('adminCustomers.oppCurrency') }}</span>
@@ -565,6 +588,7 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
               <tr>
                 <th>{{ t('adminCustomers.oppTitle') }}</th>
                 <th>{{ t('adminCustomers.oppQuoteNumber') }}</th>
+                <th>{{ t('adminCustomers.oppNature') }}</th>
                 <th>{{ t('adminCustomers.oppType') }}</th>
                 <th>{{ t('adminCustomers.oppStage') }}</th>
                 <th class="ta-right">{{ t('adminCustomers.oppValue') }}</th>
@@ -581,6 +605,11 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
                 <td>
                   <span v-if="o.quoteNumber" class="quote-badge">{{ o.quoteNumber }}</span>
                   <span v-else>—</span>
+                </td>
+                <td>
+                  <span class="nature-badge" :class="`nature-badge--${o.nature}`">
+                    {{ t('adminCustomers.oppNature_' + o.nature) }}
+                  </span>
                 </td>
                 <td>{{ o.typeName }}</td>
                 <td>
@@ -668,6 +697,10 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
                       </button>
                     </div>
                   </div>
+
+                  <span class="nature-badge" :class="`nature-badge--${o.nature}`">
+                    {{ t('adminCustomers.oppNature_' + o.nature) }}
+                  </span>
 
                   <p class="card-value">{{ formatMoney(o.value, o.currency) }}</p>
 
@@ -1130,6 +1163,32 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+/* ── New / upsell nature badge ──────────────────────────────────────── */
+.nature-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.nature-badge--new {
+  background: #e7eefc;
+  color: #2b59c3;
+}
+
+.nature-badge--upsell {
+  background: #f3e8fb;
+  color: #7a3aa8;
+}
+
+.card .nature-badge {
+  margin-top: 0.4rem;
 }
 
 .doc-indicator {

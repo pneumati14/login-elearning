@@ -65,6 +65,8 @@ export interface ReportFilters {
   typeId?: number | null
   userId?: number | null
   stageIds?: number[]
+  /** 'new' | 'upsell' — omit for all. */
+  nature?: string | null
 }
 
 export const useReportsStore = defineStore('reports', () => {
@@ -80,6 +82,7 @@ export const useReportsStore = defineStore('reports', () => {
       if (filters.typeId) params.set('typeId', String(filters.typeId))
       if (filters.userId) params.set('userId', String(filters.userId))
       if (filters.stageIds && filters.stageIds.length > 0) params.set('stageIds', filters.stageIds.join(','))
+      if (filters.nature) params.set('nature', filters.nature)
       const query = params.toString()
       const response = await fetch(`${API_URL}/admin/reports/pipeline${query ? `?${query}` : ''}`, {
         headers: { Accept: 'application/json' },
