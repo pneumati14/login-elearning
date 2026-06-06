@@ -144,6 +144,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresAdmin: true },
     },
     {
+      path: '/admin/integrations',
+      name: 'admin-integrations',
+      component: () => import('../views/AdminIntegrationsView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
       path: '/admin/currencies',
       name: 'admin-currencies',
       component: () => import('../views/AdminCurrenciesView.vue'),

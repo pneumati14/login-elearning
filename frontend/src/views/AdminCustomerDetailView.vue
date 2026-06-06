@@ -19,6 +19,7 @@ import CustomerBillingPanel from '@/components/CustomerBillingPanel.vue'
 import CustomerCardsPanel from '@/components/CustomerCardsPanel.vue'
 import CustomerContactsPanel from '@/components/CustomerContactsPanel.vue'
 import CustomerOpportunitiesPanel from '@/components/CustomerOpportunitiesPanel.vue'
+import CustomerArchitecturePanel from '@/components/CustomerArchitecturePanel.vue'
 import ActivityList from '@/components/ActivityList.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 
@@ -35,7 +36,7 @@ const loading = ref(true)
 const notFound = ref(false)
 const editing = ref(false)
 
-type TabKey = 'overview' | 'fees' | 'billing' | 'cards' | 'contacts' | 'opportunities' | 'timeline'
+type TabKey = 'overview' | 'fees' | 'billing' | 'cards' | 'contacts' | 'opportunities' | 'architecture' | 'timeline'
 const activeTab = ref<TabKey>('overview')
 
 const tabs: { key: TabKey; label: string; ready: boolean }[] = [
@@ -45,6 +46,7 @@ const tabs: { key: TabKey; label: string; ready: boolean }[] = [
   { key: 'cards', label: 'tabCards', ready: true },
   { key: 'contacts', label: 'tabContacts', ready: true },
   { key: 'opportunities', label: 'tabOpportunities', ready: true },
+  { key: 'architecture', label: 'tabArchitecture', ready: true },
   { key: 'timeline', label: 'tabTimeline', ready: true },
 ]
 
@@ -412,6 +414,11 @@ function salesPeriod(a: SalesAssignment): string {
         <!-- ── Opportunities (kanban) ───────────────────────────────── -->
         <div v-else-if="activeTab === 'opportunities'" class="cust-panel">
           <CustomerOpportunitiesPanel :customer="customer" />
+        </div>
+
+        <!-- ── Architecture ─────────────────────────────────────────── -->
+        <div v-else-if="activeTab === 'architecture'" class="cust-panel">
+          <CustomerArchitecturePanel :customer="customer" />
         </div>
 
         <!-- ── Timeline (activities) ────────────────────────────────── -->

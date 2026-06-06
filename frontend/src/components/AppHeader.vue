@@ -82,6 +82,7 @@ const menuItems = computed<MenuItem[]>(() => {
         { label: t('nav.adminProducts'), icon: 'publications.svg', type: 'route', to: '/admin/products' },
         { label: t('nav.adminSuppliers'), icon: 'connect.svg', type: 'route', to: '/admin/suppliers' },
         { label: t('nav.adminFeeTitles'), icon: 'productivity.svg', type: 'route', to: '/admin/fee-titles' },
+        { label: t('nav.adminIntegrations'), icon: 'cplatform.svg', type: 'route', to: '/admin/integrations' },
         { label: t('nav.adminCurrencies'), icon: 'workhour.svg', type: 'route', to: '/admin/currencies' },
         { label: t('nav.adminFulfillmentTypes'), icon: 'icon-app.svg', type: 'route', to: '/admin/fulfillment-types' },
       )
