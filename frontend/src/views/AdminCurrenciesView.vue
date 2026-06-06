@@ -76,6 +76,7 @@ function preview(s: CurrencySetting): string {
               <tr>
                 <th>{{ t('adminCurrencies.colCurrency') }}</th>
                 <th>{{ t('adminCurrencies.colDecimals') }}</th>
+                <th>{{ t('adminCurrencies.colRate') }}</th>
                 <th>{{ t('adminCurrencies.colPreview') }}</th>
               </tr>
             </thead>
@@ -85,10 +86,15 @@ function preview(s: CurrencySetting): string {
                 <td>
                   <input v-model.number="s.decimals" type="number" min="0" max="4" step="1" required />
                 </td>
+                <td>
+                  <input v-if="'HUF' === s.currency" type="text" value="1" disabled />
+                  <input v-else v-model="s.rateHuf" type="text" inputmode="decimal" />
+                </td>
                 <td class="cur-preview">{{ preview(s) }}</td>
               </tr>
             </tbody>
           </table>
+          <p class="cur-hint">{{ t('adminCurrencies.rateHint') }}</p>
 
           <p v-if="saveError" class="msg msg--error">{{ saveError }}</p>
           <div class="form-actions">
@@ -186,6 +192,12 @@ function preview(s: CurrencySetting): string {
 
 .cur-preview {
   color: #545f71;
+}
+
+.cur-hint {
+  margin: -0.4rem 0 1.1rem;
+  color: #8b94a6;
+  font-size: 0.82rem;
 }
 
 .form-actions {

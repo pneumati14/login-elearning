@@ -7,13 +7,14 @@ import ReportChart from '@/components/ReportChart.vue'
 import { useReportsStore, type ReportTotal, type ReportType } from '@/stores/reports'
 import { useOpportunityTypesStore } from '@/stores/opportunityTypes'
 import { useUsersStore } from '@/stores/users'
-import { useMoneyFormat } from '@/stores/currencySettings'
+import { useCurrencySettingsStore, useMoneyFormat } from '@/stores/currencySettings'
 import AppSelect from '@/components/AppSelect.vue'
 
 const { t, locale } = useI18n()
 const store = useReportsStore()
 const typesStore = useOpportunityTypesStore()
 const usersStore = useUsersStore()
+const currencyStore = useCurrencySettingsStore()
 const { report, loading, error } = storeToRefs(store)
 const { types } = storeToRefs(typesStore)
 const { users } = storeToRefs(usersStore)
@@ -125,21 +126,107 @@ function fmtDate(date: string): string {
   return new Date(`${date}T00:00:00`).toLocaleDateString(locale.value)
 }
 
-/** The selected currency's sums out of a per-currency totals list. */
-function pick(totals: ReportTotal[]): { value: number; weighted: number } {
-  const row = totals.find((tt) => tt.currency === filterCurrency.value)
-  return { value: Number(row?.value ?? 0), weighted: Number(row?.weighted ?? 0) }
+// ── Currency conversion (totals → selected currency) ─────────────────────
+/** Every currency that actually carries value somewhere in the report. */
+const reportCurrencies = computed<string[]>(() => {
+  const r = report.value
+  if (null === r) return []
+  const found = new Set<string>()
+  const collect = (totals: ReportTotal[]) => {
+    for (const tt of totals) if (0 !== Number(tt.value)) found.add(tt.currency)
+  }
+  for (const tp of r.types) {
+    collect(tp.openTotals)
+    for (const s of tp.stages) collect(s.totals)
+  }
+  for (const m of r.forecast.months) collect(m.totals)
+  for (const o of r.owners) collect(o.totals)
+  collect(r.closed.won.totals)
+  collect(r.closed.lost.totals)
+  return [...found].sort()
+})
+
+const conversionNeeded = computed(() => reportCurrencies.value.some((c) => c !== filterCurrency.value))
+
+/** Non-HUF currencies whose rate the conversion needs (editable inline). */
+const rateEditCurrencies = computed<string[]>(() => {
+  if (!conversionNeeded.value) return []
+  const needed = new Set(reportCurrencies.value)
+  needed.add(filterCurrency.value)
+  needed.delete('HUF')
+  return [...needed].sort()
+})
+
+const missingRateCurrencies = computed<string[]>(() =>
+  rateEditCurrencies.value.filter((c) => null === currencyStore.rateFor(c)),
+)
+
+// Local editable copies of the rates; persisted on change (sales may save).
+const rateDraft = ref<Record<string, string>>({})
+watch(
+  [() => currencyStore.settings, rateEditCurrencies],
+  () => {
+    for (const c of rateEditCurrencies.value) {
+      if (!(c in rateDraft.value)) {
+        const rate = currencyStore.rateFor(c)
+        rateDraft.value[c] = null === rate ? '' : String(rate)
+      }
+    }
+  },
+  { immediate: true, deep: true },
+)
+
+const rateSaved = ref(false)
+const rateError = ref<string | null>(null)
+
+async function onRateChange(): Promise<void> {
+  rateError.value = null
+  rateSaved.value = false
+  const rates = rateEditCurrencies.value.map((c) => ({
+    currency: c,
+    rateHuf: '' === rateDraft.value[c]?.trim() ? null : (rateDraft.value[c] ?? null),
+  }))
+  const result = await currencyStore.updateRates(rates)
+  if (result.ok) {
+    rateSaved.value = true
+    window.setTimeout(() => (rateSaved.value = false), 2500)
+  } else {
+    rateError.value = result.error ?? t('admin.saveFailed')
+  }
 }
 
-/** Per-currency lines for a table cell; em dash when there is nothing. */
+/**
+ * Sum a per-currency totals list converted into the selected currency
+ * (via the HUF rates). Amounts whose rate is missing are skipped — the
+ * filter bar warns about those.
+ */
+function pick(totals: ReportTotal[]): { value: number; weighted: number } {
+  const targetRate = currencyStore.rateFor(filterCurrency.value)
+  let value = 0
+  let weighted = 0
+  for (const tt of totals) {
+    if (tt.currency === filterCurrency.value) {
+      value += Number(tt.value)
+      weighted += Number(tt.weighted)
+      continue
+    }
+    const rate = currencyStore.rateFor(tt.currency)
+    if (null === rate || null === targetRate) continue
+    value += (Number(tt.value) * rate) / targetRate
+    weighted += (Number(tt.weighted) * rate) / targetRate
+  }
+  return { value, weighted }
+}
+
+/** Converted single-currency cell content; em dash when there is nothing. */
 function valueLines(totals: ReportTotal[]): string[] {
-  const lines = totals.filter((tt) => 0 !== Number(tt.value)).map((tt) => fmtMoney(tt.value, tt.currency))
-  return lines.length > 0 ? lines : ['—']
+  const sums = pick(totals)
+  return 0 === sums.value && 0 === sums.weighted ? ['—'] : [fmtMoney(sums.value)]
 }
 
 function weightedLines(totals: ReportTotal[]): string[] {
-  const lines = totals.filter((tt) => 0 !== Number(tt.value)).map((tt) => fmtMoney(tt.weighted, tt.currency))
-  return lines.length > 0 ? lines : ['—']
+  const sums = pick(totals)
+  return 0 === sums.value && 0 === sums.weighted ? ['—'] : [fmtMoney(sums.weighted)]
 }
 
 function hasDeals(tp: ReportType): boolean {
@@ -393,6 +480,27 @@ const ownersHeight = computed(() => `${Math.max(220, 52 * (report.value?.owners.
             {{ s.name }}
           </button>
         </div>
+
+        <!-- ── Inline exchange rates (only when conversion is needed) ── -->
+        <div v-if="rateEditCurrencies.length > 0" class="rate-bar">
+          <span class="rate-bar-label">{{ t('adminReports.ratesLabel') }}:</span>
+          <label v-for="c in rateEditCurrencies" :key="c" class="rate-field">
+            <span>1 {{ c }} =</span>
+            <input
+              v-model="rateDraft[c]"
+              type="text"
+              inputmode="decimal"
+              :placeholder="t('adminReports.ratePlaceholder')"
+              @change="onRateChange"
+            />
+            <span>HUF</span>
+          </label>
+          <span v-if="rateSaved" class="rate-saved">✓ {{ t('adminCustomers.billingSaved') }}</span>
+        </div>
+        <p v-if="rateError" class="rate-msg rate-msg--error">{{ rateError }}</p>
+        <p v-else-if="missingRateCurrencies.length > 0" class="rate-msg rate-msg--warn">
+          {{ t('adminReports.rateMissing', { list: missingRateCurrencies.join(', ') }) }}
+        </p>
       </div>
 
       <p v-if="loading" class="state">{{ t('adminReports.loading') }}</p>
@@ -689,6 +797,76 @@ const ownersHeight = computed(() => `${Math.max(220, 52 * (report.value?.owners.
   background: var(--login-primary, #ed2044);
   border-color: var(--login-primary, #ed2044);
   color: #fff;
+}
+
+/* ── Inline exchange rates ──────────────────────────────────────────── */
+.rate-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eef1f6;
+}
+
+.rate-bar-label {
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rate-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #545f71;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.rate-field input {
+  width: 6.5rem;
+  padding: 0.45rem 0.6rem;
+  background: #f7f8fb;
+  border: 1px solid #d4dae6;
+  border-radius: 0.5rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.92rem;
+  font-family: inherit;
+  text-align: right;
+}
+
+.rate-field input:focus {
+  outline: 2px solid var(--login-primary, #ed2044);
+  outline-offset: -1px;
+  background: #fff;
+}
+
+.rate-saved {
+  color: #198754;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.rate-msg {
+  margin: 0.7rem 0 0;
+  padding: 0.55rem 0.8rem;
+  border-radius: 0.55rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.rate-msg--warn {
+  background: #fdf3e6;
+  color: #8a5a18;
+}
+
+.rate-msg--error {
+  background: #fde8ec;
+  color: #b3122e;
 }
 
 /* ── KPI cards ──────────────────────────────────────────────────────── */

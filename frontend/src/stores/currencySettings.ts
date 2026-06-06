@@ -8,6 +8,8 @@ const API_URL = import.meta.env.VITE_API_URL || '/api'
 export interface CurrencySetting {
   currency: string
   decimals: number
+  /** 1 unit of this currency in HUF (HUF itself is 1); null until set. */
+  rateHuf: string | null
 }
 
 /** Shown before the settings arrive (matches the backend defaults). */
@@ -27,6 +29,15 @@ export const useCurrencySettingsStore = defineStore('currencySettings', () => {
   function decimalsFor(currency: string): number {
     const row = settings.value.find((s) => s.currency === currency)
     return row ? row.decimals : (FALLBACK_DECIMALS[currency] ?? 2)
+  }
+
+  /** The currency's HUF rate as a positive number, or null when unset. */
+  function rateFor(currency: string): number | null {
+    if ('HUF' === currency) return 1
+    const raw = settings.value.find((s) => s.currency === currency)?.rateHuf
+    if (null === raw || undefined === raw || '' === raw) return null
+    const rate = Number(String(raw).replace(',', '.'))
+    return Number.isFinite(rate) && rate > 0 ? rate : null
   }
 
   async function fetchSettings(): Promise<void> {
@@ -69,7 +80,26 @@ export const useCurrencySettingsStore = defineStore('currencySettings', () => {
     }
   }
 
-  return { settings, loading, error, decimalsFor, fetchSettings, updateSettings }
+  /** Save only the exchange rates (sales can do this, unlike updateSettings). */
+  async function updateRates(rates: { currency: string; rateHuf: string | null }[]): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/currency-settings/rates`, {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ rates }),
+      })
+      if (!response.ok) {
+        return { ok: false, error: await readError(response, 'A mentés nem sikerült.') }
+      }
+      settings.value = (await response.json()) as CurrencySetting[]
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  return { settings, loading, error, decimalsFor, rateFor, fetchSettings, updateSettings, updateRates }
 })
 
 /**
