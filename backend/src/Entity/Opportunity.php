@@ -107,6 +107,16 @@ class Opportunity
     private Collection $lineItems;
 
     /**
+     * Preliminary effort estimate rows (development / PM effort per piece
+     * of work). Reported separately per effort type.
+     *
+     * @var Collection<int, OpportunityEffortEstimate>
+     */
+    #[ORM\OneToMany(mappedBy: 'opportunity', targetEntity: OpportunityEffortEstimate::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['position' => 'ASC', 'id' => 'ASC'])]
+    private Collection $effortEstimates;
+
+    /**
      * Uploaded offer/quote documents (PDFs). Newest first.
      *
      * @var Collection<int, OpportunityDocument>
@@ -128,6 +138,7 @@ class Opportunity
         $this->updatedAt = $now;
         $this->stageChanges = new ArrayCollection();
         $this->lineItems = new ArrayCollection();
+        $this->effortEstimates = new ArrayCollection();
         $this->documents = new ArrayCollection();
     }
 
@@ -339,6 +350,42 @@ class Opportunity
         $total = 0.0;
         foreach ($this->lineItems as $item) {
             $total += (float) $item->getLineTotal();
+        }
+
+        return number_format($total, 2, '.', '');
+    }
+
+    /**
+     * @return Collection<int, OpportunityEffortEstimate>
+     */
+    public function getEffortEstimates(): Collection
+    {
+        return $this->effortEstimates;
+    }
+
+    public function addEffortEstimate(OpportunityEffortEstimate $estimate): static
+    {
+        if (!$this->effortEstimates->contains($estimate)) {
+            $this->effortEstimates->add($estimate);
+            $estimate->setOpportunity($this);
+        }
+
+        return $this;
+    }
+
+    public function clearEffortEstimates(): void
+    {
+        $this->effortEstimates->clear();
+    }
+
+    /** Sum of the given effort type's rows, in days, as a 2-decimal string. */
+    public function getEffortTotalDays(string $effortType): string
+    {
+        $total = 0.0;
+        foreach ($this->effortEstimates as $estimate) {
+            if ($estimate->getEffortType() === $effortType) {
+                $total += (float) $estimate->getAmountDays();
+            }
         }
 
         return number_format($total, 2, '.', '');

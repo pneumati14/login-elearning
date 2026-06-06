@@ -33,6 +33,32 @@ export interface LineItemFields {
   unitPrice: string
 }
 
+export const EFFORT_TYPES = ['development', 'pm'] as const
+export type EffortType = (typeof EFFORT_TYPES)[number]
+
+export const EFFORT_UNITS = ['day', 'hour'] as const
+export type EffortUnit = (typeof EFFORT_UNITS)[number]
+
+/** One working day equals this many hours when converting for totals. */
+export const HOURS_PER_DAY = 8
+
+export interface EffortEstimate {
+  id: number
+  name: string
+  effortType: EffortType
+  amount: string
+  unit: EffortUnit
+  amountDays: string
+}
+
+/** An effort estimate row as edited in the form (no id — rebuilt on save). */
+export interface EffortEstimateFields {
+  name: string
+  effortType: EffortType
+  amount: string
+  unit: EffortUnit
+}
+
 export interface OpportunityDocument {
   id: number
   originalName: string
@@ -63,6 +89,9 @@ export interface Opportunity {
   hasLineItems: boolean
   lineItemsTotal: string
   lineItems: LineItem[]
+  effortEstimates: EffortEstimate[]
+  effortTotalDevelopmentDays: string
+  effortTotalPmDays: string
   documents: OpportunityDocument[]
   stageChanges: StageChange[]
   createdAt: string
@@ -81,6 +110,7 @@ export interface OpportunityFields {
   contactId: number | null
   notes: string | null
   lineItems: LineItemFields[]
+  effortEstimates: EffortEstimateFields[]
 }
 
 export function emptyOpportunityFields(): OpportunityFields {
@@ -95,6 +125,7 @@ export function emptyOpportunityFields(): OpportunityFields {
     contactId: null,
     notes: null,
     lineItems: [],
+    effortEstimates: [],
   }
 }
 

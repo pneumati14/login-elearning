@@ -7,6 +7,7 @@ use App\Entity\Contact;
 use App\Entity\Customer;
 use App\Entity\Opportunity;
 use App\Entity\OpportunityDocument;
+use App\Entity\OpportunityEffortEstimate;
 use App\Entity\OpportunityLineItem;
 use App\Entity\OpportunityStage;
 use App\Entity\OpportunityStageChange;
@@ -328,6 +329,13 @@ final class AdminCustomerOpportunityController extends AbstractController
             }
         }
 
+        if (\array_key_exists('effortEstimates', $payload)) {
+            $error = $this->applyEffortEstimates($o, $payload['effortEstimates']);
+            if (null !== $error) {
+                return $error;
+            }
+        }
+
         // The value is driven by the line items whenever there are any;
         // the manual value field only applies to lineless opportunities.
         if (!$o->getLineItems()->isEmpty()) {
@@ -380,6 +388,55 @@ final class AdminCustomerOpportunityController extends AbstractController
                 ->setUnitPrice($this->parseDecimal($raw['unitPrice'] ?? null) ?? '0')
                 ->setPosition($position++);
             $o->addLineItem($item);
+        }
+
+        return null;
+    }
+
+    /**
+     * Rebuild the opportunity's preliminary effort estimate rows from the
+     * payload list. Each entry: { name, effortType, amount, unit }.
+     */
+    private function applyEffortEstimates(Opportunity $o, mixed $estimates): ?string
+    {
+        if (!\is_array($estimates)) {
+            return 'Érvénytelen becslési sorok.';
+        }
+
+        $o->clearEffortEstimates();
+        $position = 0;
+        foreach ($estimates as $raw) {
+            if (!\is_array($raw)) {
+                continue;
+            }
+
+            $name = trim((string) ($raw['name'] ?? ''));
+            if ('' === $name) {
+                return 'A becslési sor megnevezése kötelező.';
+            }
+
+            $type = (string) ($raw['effortType'] ?? '');
+            if (!\in_array($type, OpportunityEffortEstimate::TYPES, true)) {
+                return 'Érvénytelen ráfordítás-típus a becslésben.';
+            }
+
+            $unit = (string) ($raw['unit'] ?? '');
+            if (!\in_array($unit, OpportunityEffortEstimate::UNITS, true)) {
+                return 'Érvénytelen mértékegység a becslésben.';
+            }
+
+            $amount = $this->parseDecimal($raw['amount'] ?? null);
+            if (null === $amount || (float) $amount < 0) {
+                return 'Érvénytelen ráfordítás-érték a becslésben.';
+            }
+
+            $estimate = new OpportunityEffortEstimate();
+            $estimate->setName($name)
+                ->setEffortType($type)
+                ->setAmount($amount)
+                ->setUnit($unit)
+                ->setPosition($position++);
+            $o->addEffortEstimate($estimate);
         }
 
         return null;
@@ -590,6 +647,19 @@ final class AdminCustomerOpportunityController extends AbstractController
                 ],
                 $o->getLineItems()->toArray(),
             ),
+            'effortEstimates' => array_map(
+                fn (OpportunityEffortEstimate $ee): array => [
+                    'id' => $ee->getId(),
+                    'name' => $ee->getName(),
+                    'effortType' => $ee->getEffortType(),
+                    'amount' => $ee->getAmount(),
+                    'unit' => $ee->getUnit(),
+                    'amountDays' => $ee->getAmountDays(),
+                ],
+                $o->getEffortEstimates()->toArray(),
+            ),
+            'effortTotalDevelopmentDays' => $o->getEffortTotalDays(OpportunityEffortEstimate::TYPE_DEVELOPMENT),
+            'effortTotalPmDays' => $o->getEffortTotalDays(OpportunityEffortEstimate::TYPE_PM),
             'documents' => array_map(
                 fn (OpportunityDocument $d): array => [
                     'id' => $d->getId(),

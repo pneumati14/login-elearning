@@ -8,9 +8,13 @@ import {
   formatMoney,
   formatFileSize,
   CURRENCIES,
+  HOURS_PER_DAY,
   type Opportunity,
   type OpportunityFields,
   type LineItemFields,
+  type EffortEstimateFields,
+  type EffortType,
+  type EffortUnit,
 } from '@/stores/opportunities'
 import { useOpportunityTypesStore, typeStatus, type OpportunityType } from '@/stores/opportunityTypes'
 import { useProductsStore } from '@/stores/products'
@@ -116,6 +120,12 @@ function openEdit(o: Opportunity): void {
     quantity: li.quantity,
     unitPrice: li.unitPrice,
   }))
+  form.effortEstimates = o.effortEstimates.map((ee) => ({
+    name: ee.name,
+    effortType: ee.effortType,
+    amount: ee.amount,
+    unit: ee.unit,
+  }))
   formError.value = null
   showForm.value = true
 }
@@ -154,6 +164,34 @@ function lineTotal(line: LineItemFields): number {
   return Number(line.quantity || 0) * Number(line.unitPrice || 0)
 }
 
+// ── Preliminary effort estimate editing ───────────────────────────────
+const hasEstimates = computed(() => form.effortEstimates.length > 0)
+
+function addEstimate(): void {
+  form.effortEstimates.push({ name: '', effortType: 'development', amount: '', unit: 'day' })
+}
+
+function removeEstimate(index: number): void {
+  form.effortEstimates.splice(index, 1)
+}
+
+/** A row's effort in days (hour rows are converted with the 8h workday). */
+function estimateDays(row: EffortEstimateFields): number {
+  const amount = Number(String(row.amount).replace(',', '.')) || 0
+  return 'hour' === row.unit ? amount / HOURS_PER_DAY : amount
+}
+
+function effortTotalDays(effortType: EffortEstimateFields['effortType']): number {
+  return form.effortEstimates
+    .filter((row) => row.effortType === effortType)
+    .reduce((sum, row) => sum + estimateDays(row), 0)
+}
+
+/** Days as a human-readable number ("0,75"), without trailing zeros. */
+function formatDays(days: number): string {
+  return (Math.round(days * 100) / 100).toLocaleString('hu-HU')
+}
+
 async function onSubmit(): Promise<void> {
   if ('' === form.title.trim()) {
     formError.value = t('adminCustomers.oppTitleRequired')
@@ -167,6 +205,13 @@ async function onSubmit(): Promise<void> {
   for (const li of form.lineItems) {
     if ('' === li.productName.trim() && null === li.productId) {
       formError.value = t('adminCustomers.oppLineItems')
+      return
+    }
+  }
+  // Every effort estimate row needs a name too.
+  for (const ee of form.effortEstimates) {
+    if ('' === ee.name.trim()) {
+      formError.value = t('adminCustomers.oppEffortNameRequired')
       return
     }
   }
@@ -303,6 +348,14 @@ const productSelectOptions = computed<{ value: number | null; label: string }[]>
   { value: null, label: t('adminCustomers.oppCustomLine') },
   ...productsStore.products.map((p) => ({ value: p.id, label: p.name })),
 ])
+const effortTypeSelectOptions = computed<{ value: EffortType; label: string }[]>(() => [
+  { value: 'development', label: t('adminCustomers.oppEffortTypeDev') },
+  { value: 'pm', label: t('adminCustomers.oppEffortTypePm') },
+])
+const effortUnitSelectOptions = computed<{ value: EffortUnit; label: string }[]>(() => [
+  { value: 'day', label: t('adminCustomers.oppEffortUnitDay') },
+  { value: 'hour', label: t('adminCustomers.oppEffortUnitHour') },
+])
 
 /** Stage options for the list-view row select of a given opportunity. */
 function stageSelectOptions(typeId: number): { value: number; label: string }[] {
@@ -419,6 +472,42 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
               <strong>{{ formatMoney(String(lineItemsTotal.toFixed(2)), form.currency) }}</strong>
             </div>
             <p class="line-note">{{ t('adminCustomers.oppValueFromLines') }}</p>
+          </div>
+        </div>
+
+        <!-- ── Preliminary effort estimate ──────────────────────────── -->
+        <div class="effort">
+          <div class="effort-head">
+            <span class="effort-title">{{ t('adminCustomers.oppEffort') }}</span>
+            <button type="button" class="btn-line-add" @click="addEstimate">{{ t('adminCustomers.oppEffortAdd') }}</button>
+          </div>
+
+          <p v-if="!hasEstimates" class="effort-hint">{{ t('adminCustomers.oppEffortEmpty') }}</p>
+
+          <div v-else class="line-rows">
+            <div class="effort-row effort-row--head">
+              <span>{{ t('adminCustomers.oppEffortName') }}</span>
+              <span>{{ t('adminCustomers.oppEffortType') }}</span>
+              <span class="ta-right">{{ t('adminCustomers.oppEffortAmount') }}</span>
+              <span>{{ t('adminCustomers.oppEffortUnit') }}</span>
+              <span class="ta-right">{{ t('adminCustomers.oppEffortInDays') }}</span>
+              <span></span>
+            </div>
+            <div v-for="(ee, i) in form.effortEstimates" :key="i" class="effort-row">
+              <input v-model="ee.name" type="text" maxlength="255" :placeholder="t('adminCustomers.oppEffortName')" />
+              <AppSelect v-model="ee.effortType" :options="effortTypeSelectOptions" compact />
+              <input v-model="ee.amount" type="text" inputmode="decimal" class="line-num" />
+              <AppSelect v-model="ee.unit" :options="effortUnitSelectOptions" compact />
+              <span class="effort-days ta-right">{{ formatDays(estimateDays(ee)) }}</span>
+              <button type="button" class="btn-icon btn-icon--danger" :title="t('admin.delete')" :aria-label="t('admin.delete')" @click="removeEstimate(i)">
+                <IconDelete />
+              </button>
+            </div>
+            <div class="effort-row effort-row--total">
+              <span class="line-total-label">{{ t('adminCustomers.oppEffortTotals') }}</span>
+              <strong>{{ t('adminCustomers.oppEffortTotalLine', { dev: formatDays(effortTotalDays('development')), pm: formatDays(effortTotalDays('pm')) }) }}</strong>
+            </div>
+            <p class="line-note">{{ t('adminCustomers.oppEffortConversionNote', { hours: HOURS_PER_DAY }) }}</p>
           </div>
         </div>
 
@@ -586,6 +675,10 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
                     <div v-if="o.ownerName"><dt>{{ t('adminCustomers.oppOwner') }}</dt><dd>{{ o.ownerName }}</dd></div>
                     <div v-if="o.contactName"><dt>{{ t('adminCustomers.oppContact') }}</dt><dd>{{ o.contactName }}</dd></div>
                     <div v-if="o.lineItems.length"><dt>{{ t('adminCustomers.oppLineItems') }}</dt><dd>{{ o.lineItems.length }}</dd></div>
+                    <div v-if="o.effortEstimates.length">
+                      <dt>{{ t('adminCustomers.oppEffortShort') }}</dt>
+                      <dd>{{ t('adminCustomers.oppEffortTotalLine', { dev: formatDays(Number(o.effortTotalDevelopmentDays)), pm: formatDays(Number(o.effortTotalPmDays)) }) }}</dd>
+                    </div>
                     <div v-if="o.expectedCloseDate"><dt>{{ t('adminCustomers.oppExpectedClose') }}</dt><dd>{{ o.expectedCloseDate }}</dd></div>
                   </dl>
 
@@ -865,6 +958,76 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
   margin: 0.4rem 0 0;
   color: #8b94a6;
   font-size: 0.78rem;
+}
+
+/* ── Preliminary effort estimate ──────────────────────────────────── */
+.effort {
+  margin-bottom: 1rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid #eef1f6;
+}
+
+.effort-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.effort-title {
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.effort-hint {
+  margin: 0;
+  color: #8b94a6;
+  font-size: 0.8rem;
+}
+
+.effort-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9rem 5rem 6rem 6rem 2rem;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.effort-row--head {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #8b94a6;
+}
+
+.effort-row input {
+  padding: 0.45rem 0.55rem;
+  background: #f7f8fb;
+  border: 1px solid #d4dae6;
+  border-radius: 0.45rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.effort-days {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--login-secondary, #0c1c40);
+}
+
+.effort-row--total {
+  grid-template-columns: auto 1fr;
+  justify-content: start;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #d4dae6;
+}
+
+.effort-row--total strong {
+  color: var(--login-primary, #ed2044);
+  font-size: 0.95rem;
+  justify-self: end;
 }
 
 /* ── Documents ────────────────────────────────────────────────────── */
@@ -1366,6 +1529,18 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
 
   .line-total,
   .line-row .btn-icon--danger {
+    grid-column: span 3;
+    justify-self: end;
+  }
+
+  .effort-row,
+  .effort-row--head {
+    grid-template-columns: 1fr 7rem 4rem;
+    grid-auto-rows: auto;
+  }
+
+  .effort-days,
+  .effort-row .btn-icon--danger {
     grid-column: span 3;
     justify-self: end;
   }
