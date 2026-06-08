@@ -590,17 +590,16 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
                 <th>{{ t('adminCustomers.oppStage') }}</th>
                 <th class="ta-right">{{ t('adminCustomers.oppValue') }}</th>
                 <th>{{ t('adminCustomers.oppOwner') }}</th>
-                <th class="col-docs"><span class="sr-only">{{ t('adminCustomers.oppDocuments') }}</span>📄</th>
+                <th class="col-docs">{{ t('adminCustomers.oppQuoteNumber') }}</th>
                 <th class="col-actions"><span class="sr-only">{{ t('adminCustomers.colActions') }}</span></th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="o in opportunities" :key="o.id" class="opp-tr" :class="{ 'is-editing': editingId === o.id }">
-                <!-- Title + quote no. + nature + type, stacked. -->
+                <!-- Title + nature + type, stacked (quote no. sits with the PDF). -->
                 <td class="cell-main">
                   <span class="cell-title">{{ o.title }}</span>
                   <span class="cell-sub">
-                    <span v-if="o.quoteNumber" class="quote-badge">{{ o.quoteNumber }}</span>
                     <span class="nature-badge" :class="`nature-badge--${o.nature}`">
                       {{ t('adminCustomers.oppNature_' + o.nature) }}
                     </span>
@@ -628,20 +627,19 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
                   <span>{{ o.ownerName || '—' }}</span>
                   <span v-if="o.contactName" class="cell-sub-line">{{ o.contactName }}</span>
                 </td>
-                <!-- Documents: compact icon links (filename in the tooltip). -->
+                <!-- Quote number + the offer PDF(s) it belongs to (filename in the tooltip). -->
                 <td class="cell-docs">
-                  <template v-if="o.documents.length">
-                    <a
-                      v-for="d in o.documents"
-                      :key="d.id"
-                      :href="d.url"
-                      target="_blank"
-                      rel="noopener"
-                      class="doc-indicator"
-                      :title="d.originalName"
-                    >📄</a>
-                  </template>
-                  <span v-else>—</span>
+                  <span v-if="o.quoteNumber" class="quote-badge">{{ o.quoteNumber }}</span>
+                  <a
+                    v-for="d in o.documents"
+                    :key="d.id"
+                    :href="d.url"
+                    target="_blank"
+                    rel="noopener"
+                    class="doc-indicator"
+                    :title="d.originalName"
+                  >📄</a>
+                  <span v-if="!o.quoteNumber && o.documents.length === 0">—</span>
                 </td>
                 <td class="col-actions">
                   <div class="opp-row-actions">
@@ -1203,22 +1201,22 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
   filter: brightness(0.85);
 }
 
-/* Compact icon stack — filenames live in the tooltip, not the cell. */
+/* Quote number + compact PDF icons — filenames live in the tooltip. */
 .cell-docs {
   white-space: nowrap;
 }
 
+.cell-docs .quote-badge {
+  margin-right: 0.35rem;
+}
+
 .cell-docs .doc-indicator {
   margin-right: 0.15rem;
+  vertical-align: middle;
 }
 
 .col-docs {
-  text-align: center;
   white-space: nowrap;
-}
-
-td.cell-docs {
-  text-align: center;
 }
 
 .form-actions {
