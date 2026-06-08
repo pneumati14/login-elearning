@@ -3,6 +3,8 @@
 namespace App\Controller;
 
 use App\Entity\Product;
+use App\Entity\ProductCategory;
+use App\Entity\ProductSubcategory;
 use App\Repository\ProductRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -106,6 +108,37 @@ final class AdminProductController extends AbstractController
             ->setDescription($this->nullableString($payload, 'description'))
             ->setUnitPrice($this->parseDecimal($payload['unitPrice'] ?? null));
 
+        // Category / sub-category. The category is required by the form,
+        // but kept lenient here so legacy rows and inline price edits do
+        // not break; when provided, the FKs are validated.
+        if (\array_key_exists('categoryId', $payload)) {
+            $categoryId = $payload['categoryId'];
+            if (null === $categoryId || '' === $categoryId) {
+                $product->setCategory(null);
+                $product->setSubcategory(null);
+            } else {
+                $category = $this->entityManager->find(ProductCategory::class, (int) $categoryId);
+                if (!$category instanceof ProductCategory) {
+                    return 'A megadott kategória nem található.';
+                }
+                $product->setCategory($category);
+
+                $subcategoryId = $payload['subcategoryId'] ?? null;
+                if (null === $subcategoryId || '' === $subcategoryId) {
+                    $product->setSubcategory(null);
+                } else {
+                    $subcategory = $this->entityManager->find(ProductSubcategory::class, (int) $subcategoryId);
+                    if (!$subcategory instanceof ProductSubcategory) {
+                        return 'A megadott alkategória nem található.';
+                    }
+                    if ($subcategory->getCategory()->getId() !== $category->getId()) {
+                        return 'Az alkategória nem a kiválasztott kategóriához tartozik.';
+                    }
+                    $product->setSubcategory($subcategory);
+                }
+            }
+        }
+
         if (\array_key_exists('currency', $payload)) {
             $product->setCurrency((string) $payload['currency']);
         }
@@ -174,6 +207,10 @@ final class AdminProductController extends AbstractController
             'id' => $p->getId(),
             'name' => $p->getName(),
             'sku' => $p->getSku(),
+            'categoryId' => $p->getCategory()?->getId(),
+            'categoryName' => $p->getCategory()?->getName(),
+            'subcategoryId' => $p->getSubcategory()?->getId(),
+            'subcategoryName' => $p->getSubcategory()?->getName(),
             'description' => $p->getDescription(),
             'unitPrice' => $p->getUnitPrice(),
             'currency' => $p->getCurrency(),

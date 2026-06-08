@@ -12,6 +12,10 @@ export interface Product {
   id: number
   name: string
   sku: string | null
+  categoryId: number | null
+  categoryName: string | null
+  subcategoryId: number | null
+  subcategoryName: string | null
   description: string | null
   unitPrice: string | null
   currency: Currency
@@ -25,6 +29,8 @@ export interface Product {
 export interface ProductFields {
   name: string
   sku: string | null
+  categoryId: number | null
+  subcategoryId: number | null
   description: string | null
   unitPrice: string | null
   currency: Currency
@@ -37,6 +43,8 @@ export function emptyProductFields(): ProductFields {
   return {
     name: '',
     sku: null,
+    categoryId: null,
+    subcategoryId: null,
     description: null,
     unitPrice: null,
     currency: 'HUF',

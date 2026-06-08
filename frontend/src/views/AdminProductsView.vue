@@ -12,15 +12,26 @@ import {
   type ProductFields,
   type ProductStatus,
 } from '@/stores/products'
+import { useProductCategoriesStore } from '@/stores/productCategories'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
+import IconFilter from '@/components/icons/IconFilter.vue'
 import AppSelect from '@/components/AppSelect.vue'
 
 const { t } = useI18n()
 const store = useProductsStore()
 const { products, loading, error } = storeToRefs(store)
 
+const categoriesStore = useProductCategoriesStore()
+const { categories } = storeToRefs(categoriesStore)
+
 const search = ref('')
+const categoryFilter = ref<number | null>(null)
+const subcategoryFilter = ref<number | null>(null)
+const validityDate = ref('')
+
+// The slide-in filter drawer (top-right funnel icon).
+const showFilters = ref(false)
 
 // Options for the downward-opening AppSelect (labels unchanged).
 const currencyOptions: { value: Currency; label: string }[] = CURRENCIES.map((c) => ({
@@ -28,16 +39,85 @@ const currencyOptions: { value: Currency; label: string }[] = CURRENCIES.map((c)
   label: c,
 }))
 
+// ── Category selects (cascading) ─────────────────────────────────────
+const categorySelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminProducts.categoryPlaceholder') },
+  ...categories.value.map((c) => ({ value: c.id, label: c.name })),
+])
+
+const subcategorySelectOptions = computed<{ value: number | null; label: string }[]>(() => {
+  const category = categories.value.find((c) => c.id === form.categoryId)
+  return [
+    { value: null, label: t('adminProducts.subcategoryNone') },
+    ...(category?.subcategories ?? []).map((s) => ({ value: s.id, label: s.name })),
+  ]
+})
+
+// Changing the category drops a now-invalid sub-category.
+function onCategoryPicked(): void {
+  const category = categories.value.find((c) => c.id === form.categoryId)
+  if (!category || !category.subcategories.some((s) => s.id === form.subcategoryId)) {
+    form.subcategoryId = null
+  }
+}
+
+const categoryFilterOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminProducts.allCategories') },
+  ...categories.value.map((c) => ({ value: c.id, label: c.name })),
+])
+
+// Sub-category filter cascades from the chosen category filter.
+const subcategoryFilterOptions = computed<{ value: number | null; label: string }[]>(() => {
+  const category = categories.value.find((c) => c.id === categoryFilter.value)
+  return [
+    { value: null, label: t('adminProducts.allSubcategories') },
+    ...(category?.subcategories ?? []).map((s) => ({ value: s.id, label: s.name })),
+  ]
+})
+
+// Picking another category invalidates the sub-category filter.
+function onCategoryFilterPicked(): void {
+  subcategoryFilter.value = null
+}
+
+// A product is valid on a date when the date falls inside its validity
+// window (open-ended on either side).
+function isValidOn(p: Product, date: string): boolean {
+  if (p.validFrom && date < p.validFrom) return false
+  if (p.validUntil && date > p.validUntil) return false
+  return true
+}
+
+const activeFilterCount = computed(() => {
+  let n = 0
+  if ('' !== validityDate.value) n++
+  if (null !== categoryFilter.value) n++
+  if (null !== subcategoryFilter.value) n++
+  if ('' !== search.value.trim()) n++
+  return n
+})
+
+function clearFilters(): void {
+  validityDate.value = ''
+  categoryFilter.value = null
+  subcategoryFilter.value = null
+  search.value = ''
+}
+
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
-  if ('' === q) return products.value
-  return products.value.filter(
-    (p) => p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q),
-  )
+  return products.value.filter((p) => {
+    if ('' !== validityDate.value && !isValidOn(p, validityDate.value)) return false
+    if (null !== categoryFilter.value && p.categoryId !== categoryFilter.value) return false
+    if (null !== subcategoryFilter.value && p.subcategoryId !== subcategoryFilter.value) return false
+    if ('' === q) return true
+    return p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q)
+  })
 })
 
 onMounted(() => {
   store.fetchProducts()
+  categoriesStore.fetchCategories()
 })
 
 // ── Shared create / edit form ─────────────────────────────────────────
@@ -58,6 +138,8 @@ function openEdit(p: Product): void {
   editingId.value = p.id
   form.name = p.name
   form.sku = p.sku
+  form.categoryId = p.categoryId
+  form.subcategoryId = p.subcategoryId
   form.description = p.description
   form.unitPrice = p.unitPrice
   form.currency = p.currency
@@ -76,6 +158,10 @@ function closeForm(): void {
 async function onSubmit(): Promise<void> {
   if ('' === form.name.trim()) {
     formError.value = t('adminProducts.nameRequired')
+    return
+  }
+  if (null === form.categoryId) {
+    formError.value = t('adminProducts.categoryRequired')
     return
   }
   saving.value = true
@@ -105,6 +191,8 @@ async function saveInlinePrice(p: Product, event: Event): Promise<void> {
   const result = await store.updateProduct(p.id, {
     name: p.name,
     sku: p.sku,
+    categoryId: p.categoryId,
+    subcategoryId: p.subcategoryId,
     description: p.description,
     unitPrice: newPrice,
     currency: p.currency,
@@ -164,6 +252,24 @@ function validityLabel(p: Product): string {
             <input v-model="form.sku" type="text" maxlength="64" />
           </label>
           <label class="field">
+            <span>{{ t('adminProducts.category') }} *</span>
+            <AppSelect
+              v-model="form.categoryId"
+              :options="categorySelectOptions"
+              :placeholder="t('adminProducts.categoryPlaceholder')"
+              @change="onCategoryPicked"
+            />
+          </label>
+          <label class="field">
+            <span>{{ t('adminProducts.subcategory') }}</span>
+            <AppSelect
+              v-model="form.subcategoryId"
+              :options="subcategorySelectOptions"
+              :placeholder="t('adminProducts.subcategoryNone')"
+              :disabled="null === form.categoryId"
+            />
+          </label>
+          <label class="field">
             <span>{{ t('adminProducts.unitPrice') }}</span>
             <input v-model="form.unitPrice" type="text" inputmode="decimal" />
           </label>
@@ -201,7 +307,18 @@ function validityLabel(p: Product): string {
         <div class="pr-list-head">
           <h2>{{ t('adminProducts.existing') }}</h2>
           <div class="pr-list-tools">
-            <input v-model="search" type="search" :placeholder="t('adminProducts.searchPlaceholder')" class="search" />
+            <button
+              type="button"
+              class="btn-filter"
+              :class="{ 'is-active': activeFilterCount > 0 }"
+              :title="t('adminProducts.filters')"
+              :aria-label="t('adminProducts.filters')"
+              @click="showFilters = true"
+            >
+              <IconFilter />
+              <span>{{ t('adminProducts.filters') }}</span>
+              <span v-if="activeFilterCount > 0" class="filter-count">{{ activeFilterCount }}</span>
+            </button>
             <button type="button" class="btn-submit btn-new" @click="openNew()">
               {{ '+ ' + t('adminProducts.newProduct') }}
             </button>
@@ -225,6 +342,7 @@ function validityLabel(p: Product): string {
               <tr>
                 <th>{{ t('adminProducts.name') }}</th>
                 <th>{{ t('adminProducts.sku') }}</th>
+                <th>{{ t('adminProducts.category') }}</th>
                 <th class="col-price">{{ t('adminProducts.unitPrice') }}</th>
                 <th>{{ t('adminProducts.colStatus') }}</th>
                 <th>{{ t('adminProducts.colValidity') }}</th>
@@ -238,6 +356,12 @@ function validityLabel(p: Product): string {
                   <span v-if="p.description" class="cell-name-sub">{{ p.description }}</span>
                 </td>
                 <td>{{ p.sku || '—' }}</td>
+                <td class="cell-category">
+                  <template v-if="p.categoryName">
+                    {{ p.categoryName }}<span v-if="p.subcategoryName" class="cell-sub"> · {{ p.subcategoryName }}</span>
+                  </template>
+                  <template v-else>—</template>
+                </td>
                 <td class="col-price">
                   <span class="price-edit">
                     <input
@@ -273,6 +397,55 @@ function validityLabel(p: Product): string {
         </div>
       </div>
     </div>
+
+    <!-- ── Slide-in filter drawer ──────────────────────────────────── -->
+    <Transition name="drawer-fade">
+      <div v-if="showFilters" class="drawer-overlay" @click.self="showFilters = false">
+        <aside class="drawer" role="dialog" aria-modal="true">
+          <div class="drawer-head">
+            <h3>{{ t('adminProducts.filters') }}</h3>
+            <button type="button" class="drawer-close" :aria-label="t('adminUsers.cancel')" @click="showFilters = false">×</button>
+          </div>
+
+          <div class="drawer-body">
+            <label class="field">
+              <span>{{ t('adminProducts.filterDate') }}</span>
+              <input v-model="validityDate" type="date" />
+              <small class="field-hint">{{ t('adminProducts.filterDateHint') }}</small>
+            </label>
+
+            <label class="field">
+              <span>{{ t('adminProducts.category') }}</span>
+              <AppSelect v-model="categoryFilter" :options="categoryFilterOptions" @change="onCategoryFilterPicked" />
+            </label>
+
+            <label class="field">
+              <span>{{ t('adminProducts.subcategory') }}</span>
+              <AppSelect
+                v-model="subcategoryFilter"
+                :options="subcategoryFilterOptions"
+                :disabled="null === categoryFilter"
+              />
+            </label>
+
+            <label class="field">
+              <span>{{ t('adminProducts.filterProduct') }}</span>
+              <input v-model="search" type="search" :placeholder="t('adminProducts.searchPlaceholder')" />
+            </label>
+          </div>
+
+          <div class="drawer-foot">
+            <span class="drawer-result">{{ t('adminProducts.filterResult', { count: filtered.length }) }}</span>
+            <button type="button" class="btn-ghost" :disabled="activeFilterCount === 0" @click="clearFilters">
+              {{ t('adminProducts.clearFilters') }}
+            </button>
+            <button type="button" class="btn-submit" @click="showFilters = false">
+              {{ t('adminProducts.applyFilters') }}
+            </button>
+          </div>
+        </aside>
+      </div>
+    </Transition>
   </section>
 </template>
 
@@ -362,6 +535,185 @@ function validityLabel(p: Product): string {
   border: 1px solid #d4dae6;
   border-radius: 0.55rem;
   font-size: 0.9rem;
+}
+
+.btn-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 1rem;
+  background: #fff;
+  border: 1px solid #d4dae6;
+  border-radius: 0.55rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.btn-filter:hover {
+  border-color: var(--login-secondary, #0c1c40);
+}
+
+.btn-filter.is-active {
+  border-color: var(--login-primary, #ed2044);
+  color: var(--login-primary, #ed2044);
+}
+
+.filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  background: var(--login-primary, #ed2044);
+  border-radius: 0.7rem;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* ── Filter drawer ─────────────────────────────────────────────────── */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(12, 28, 64, 0.35);
+}
+
+.drawer {
+  display: flex;
+  flex-direction: column;
+  width: min(380px, 100%);
+  height: 100%;
+  background: #fff;
+  box-shadow: -16px 0 40px rgba(12, 28, 64, 0.18);
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.3rem 1.5rem;
+  border-bottom: 1px solid #eef1f6;
+}
+
+.drawer-head h3 {
+  margin: 0;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.drawer-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  background: #f7f8fb;
+  border: none;
+  border-radius: 0.5rem;
+  color: #545f71;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.drawer-close:hover {
+  background: #eef1f6;
+  color: var(--login-secondary, #0c1c40);
+}
+
+.drawer-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.drawer-body .field input {
+  padding: 0.55rem 0.7rem;
+  background: #f7f8fb;
+  border: 1px solid #d4dae6;
+  border-radius: 0.5rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.drawer-body .field input:focus {
+  outline: 2px solid var(--login-primary, #ed2044);
+  outline-offset: -1px;
+  background: #fff;
+}
+
+.field-hint {
+  color: #8b94a6;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.drawer-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 1.1rem 1.5rem;
+  border-top: 1px solid #eef1f6;
+}
+
+.drawer-result {
+  flex: 1 1 100%;
+  margin-bottom: 0.3rem;
+  color: #8b94a6;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.drawer-foot .btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.drawer-fade-enter-active,
+.drawer-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.drawer-fade-enter-active .drawer,
+.drawer-fade-leave-active .drawer {
+  transition: transform 0.22s ease;
+}
+
+.drawer-fade-enter-from,
+.drawer-fade-leave-to {
+  opacity: 0;
+}
+
+.drawer-fade-enter-from .drawer,
+.drawer-fade-leave-to .drawer {
+  transform: translateX(100%);
+}
+
+.cell-category {
+  color: var(--login-secondary, #0c1c40);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cell-sub {
+  color: #8b94a6;
+  font-weight: 600;
 }
 
 .form-grid {

@@ -31,6 +31,20 @@ class Product
     #[ORM\Column(length: 64, nullable: true)]
     private ?string $sku = null;
 
+    /**
+     * Top-level category (Hardver / Szoftver). Required in the form, but
+     * nullable in the DB so existing rows and a deleted category (SET
+     * NULL) do not break.
+     */
+    #[ORM\ManyToOne(targetEntity: ProductCategory::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?ProductCategory $category = null;
+
+    /** Optional sub-category; must belong to the chosen category. */
+    #[ORM\ManyToOne(targetEntity: ProductSubcategory::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?ProductSubcategory $subcategory = null;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
 
@@ -87,6 +101,30 @@ class Product
     public function setSku(?string $sku): static
     {
         $this->sku = $sku;
+
+        return $this;
+    }
+
+    public function getCategory(): ?ProductCategory
+    {
+        return $this->category;
+    }
+
+    public function setCategory(?ProductCategory $category): static
+    {
+        $this->category = $category;
+
+        return $this;
+    }
+
+    public function getSubcategory(): ?ProductSubcategory
+    {
+        return $this->subcategory;
+    }
+
+    public function setSubcategory(?ProductSubcategory $subcategory): static
+    {
+        $this->subcategory = $subcategory;
 
         return $this;
     }

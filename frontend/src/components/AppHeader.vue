@@ -81,6 +81,7 @@ const menuItems = computed<MenuItem[]>(() => {
       crmItems.push(
         { label: t('nav.adminOpportunityTypes'), icon: 'competency.svg', type: 'route', to: '/admin/opportunity-types' },
         { label: t('nav.adminProducts'), icon: 'publications.svg', type: 'route', to: '/admin/products' },
+        { label: t('nav.adminProductCategories'), icon: 'competency.svg', type: 'route', to: '/admin/product-categories' },
         { label: t('nav.adminSuppliers'), icon: 'connect.svg', type: 'route', to: '/admin/suppliers' },
         { label: t('nav.adminFeeTitles'), icon: 'productivity.svg', type: 'route', to: '/admin/fee-titles' },
         { label: t('nav.adminIntegrations'), icon: 'cplatform.svg', type: 'route', to: '/admin/integrations' },
