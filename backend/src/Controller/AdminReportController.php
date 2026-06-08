@@ -4,8 +4,10 @@ namespace App\Controller;
 
 use App\Entity\Customer;
 use App\Entity\Opportunity;
+use App\Entity\OpportunityEffortEstimate;
 use App\Entity\OpportunityStage;
 use App\Entity\OpportunityType;
+use App\Repository\CustomerArchitectureRepository;
 use App\Repository\OpportunityRepository;
 use App\Repository\OpportunityTypeRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -36,6 +38,7 @@ final class AdminReportController extends AbstractController
     public function __construct(
         private readonly OpportunityRepository $opportunities,
         private readonly OpportunityTypeRepository $types,
+        private readonly CustomerArchitectureRepository $architectures,
     ) {
     }
 
@@ -43,39 +46,8 @@ final class AdminReportController extends AbstractController
     public function pipeline(Request $request): JsonResponse
     {
         $typeId = $request->query->getInt('typeId') ?: null;
-        $userId = $request->query->getInt('userId') ?: null;
         $today = new \DateTimeImmutable('today');
-
-        $qb = $this->opportunities->createQueryBuilder('o')
-            ->addSelect('s', 't', 'c')
-            ->join('o.stage', 's')
-            ->join('o.type', 't')
-            ->join('o.customer', 'c')
-            ->andWhere('c.deletedAt IS NULL');
-        if (null !== $typeId) {
-            $qb->andWhere('t.id = :typeId')->setParameter('typeId', $typeId);
-        }
-        $nature = (string) $request->query->get('nature', '');
-        if (\in_array($nature, Opportunity::NATURES, true)) {
-            $qb->andWhere('o.nature = :nature')->setParameter('nature', $nature);
-        }
-        /** @var Opportunity[] $all */
-        $all = $qb->getQuery()->getResult();
-
-        if (null !== $userId) {
-            $all = array_values(array_filter(
-                $all,
-                fn (Opportunity $o): bool => $this->currentOwner($o->getCustomer(), $today)['id'] === $userId,
-            ));
-        }
-
-        $stageIds = array_values(array_filter(array_map('intval', explode(',', (string) $request->query->get('stageIds', '')))));
-        if ([] !== $stageIds) {
-            $all = array_values(array_filter(
-                $all,
-                fn (Opportunity $o): bool => \in_array($o->getStage()->getId(), $stageIds, true),
-            ));
-        }
+        $all = $this->filteredOpportunities($request, $today);
 
         // ── Funnel: deals by current stage ──────────────────────────────
         $byStage = [];
@@ -199,6 +171,133 @@ final class AdminReportController extends AbstractController
                 'lost' => ['count' => $closed['lost']['count'], 'totals' => $this->totalsList($closed['lost']['totals'])],
             ],
         ]);
+    }
+
+    /**
+     * Resource & revenue timeline: a Gantt-style view of the deals we
+     * still expect to win. Each project starts at its expected close date
+     * (the projected win) and its bar length is driven on the client by
+     * the development effort; the response carries the raw numbers so the
+     * client can colour by win-probability and convert revenue between
+     * currencies. Only deals that are still open or already won are
+     * returned (lost ones consume no resources); deals without an
+     * expected close date cannot be placed and are only counted. Honours
+     * the same filters as {@see pipeline()}.
+     */
+    #[Route('/timeline', name: 'timeline', methods: ['GET'])]
+    public function timeline(Request $request): JsonResponse
+    {
+        $today = new \DateTimeImmutable('today');
+        $all = $this->filteredOpportunities($request, $today);
+        $integrationCounts = $this->integrationCounts();
+
+        $projects = [];
+        $noDateCount = 0;
+        foreach ($all as $o) {
+            $outcome = $o->getStage()->getOutcome();
+            if (OpportunityStage::OUTCOME_LOST === $outcome) {
+                continue; // lost deals consume no delivery resources
+            }
+            $startDate = $o->getExpectedCloseDate();
+            if (null === $startDate) {
+                ++$noDateCount;
+                continue;
+            }
+            $value = $o->getLineItems()->isEmpty() ? (float) ($o->getValue() ?? 0) : (float) $o->getLineItemsTotal();
+            $projects[] = [
+                'id' => $o->getId(),
+                'title' => $o->getTitle(),
+                'customer' => $o->getCustomer()->getName(),
+                'nature' => $o->getNature(),
+                'stage' => $o->getStage()->getName(),
+                'outcome' => $outcome,
+                'probability' => $o->getStage()->getProbability(),
+                'startDate' => $startDate->format('Y-m-d'),
+                'devDays' => $o->getEffortTotalDays(OpportunityEffortEstimate::TYPE_DEVELOPMENT),
+                'pmDays' => $o->getEffortTotalDays(OpportunityEffortEstimate::TYPE_PM),
+                'integrationCount' => $integrationCounts[$o->getCustomer()->getId()] ?? 0,
+                'value' => number_format($value, 2, '.', ''),
+                'currency' => $o->getCurrency(),
+            ];
+        }
+
+        usort($projects, fn (array $a, array $b): int => $a['startDate'] <=> $b['startDate']);
+
+        return $this->json([
+            'projects' => $projects,
+            'noDateCount' => $noDateCount,
+        ]);
+    }
+
+    /**
+     * The opportunities of non-deleted customers, narrowed by the query
+     * filters shared across the reports: typeId (one pipeline), nature
+     * (new/upsell), userId (the salesperson currently responsible) and
+     * stageIds (deals sitting in one of the given stages).
+     *
+     * @return list<Opportunity>
+     */
+    private function filteredOpportunities(Request $request, \DateTimeImmutable $today): array
+    {
+        $typeId = $request->query->getInt('typeId') ?: null;
+        $userId = $request->query->getInt('userId') ?: null;
+
+        $qb = $this->opportunities->createQueryBuilder('o')
+            ->addSelect('s', 't', 'c')
+            ->join('o.stage', 's')
+            ->join('o.type', 't')
+            ->join('o.customer', 'c')
+            ->andWhere('c.deletedAt IS NULL');
+        if (null !== $typeId) {
+            $qb->andWhere('t.id = :typeId')->setParameter('typeId', $typeId);
+        }
+        $nature = (string) $request->query->get('nature', '');
+        if (\in_array($nature, Opportunity::NATURES, true)) {
+            $qb->andWhere('o.nature = :nature')->setParameter('nature', $nature);
+        }
+        /** @var Opportunity[] $all */
+        $all = $qb->getQuery()->getResult();
+
+        if (null !== $userId) {
+            $all = array_values(array_filter(
+                $all,
+                fn (Opportunity $o): bool => $this->currentOwner($o->getCustomer(), $today)['id'] === $userId,
+            ));
+        }
+
+        $stageIds = array_values(array_filter(array_map('intval', explode(',', (string) $request->query->get('stageIds', '')))));
+        if ([] !== $stageIds) {
+            $all = array_values(array_filter(
+                $all,
+                fn (Opportunity $o): bool => \in_array($o->getStage()->getId(), $stageIds, true),
+            ));
+        }
+
+        return array_values($all);
+    }
+
+    /**
+     * Integration count per customer id, from the architecture sheet. One
+     * query for the whole catalogue; customers without a sheet are absent
+     * (treated as zero by the caller).
+     *
+     * @return array<int, int>
+     */
+    private function integrationCounts(): array
+    {
+        $rows = $this->architectures->createQueryBuilder('a')
+            ->select('IDENTITY(a.customer) AS cid', 'COUNT(i.id) AS cnt')
+            ->leftJoin('a.integrations', 'i')
+            ->groupBy('a.id')
+            ->getQuery()
+            ->getScalarResult();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int) $row['cid']] = (int) $row['cnt'];
+        }
+
+        return $map;
     }
 
     /**

@@ -73,6 +73,7 @@ const menuItems = computed<MenuItem[]>(() => {
       { label: t('nav.adminCustomers'), icon: 'team-career.svg', type: 'route', to: '/admin/customers' },
       { label: t('nav.adminTasks'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/tasks' },
       { label: t('nav.adminReports'), icon: 'download-research.svg', type: 'route', to: '/admin/reports' },
+      { label: t('nav.adminTimeline'), icon: 'workhour.svg', type: 'route', to: '/admin/timeline' },
       { label: t('nav.adminFulfillment'), icon: 'application.svg', type: 'route', to: '/admin/fulfillment' },
       { label: t('nav.adminBilling'), icon: 'productivity.svg', type: 'route', to: '/admin/billing' },
     ]

@@ -108,6 +108,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresCrm: true },
     },
     {
+      path: '/admin/timeline',
+      name: 'admin-timeline',
+      component: () => import('../views/AdminTimelineView.vue'),
+      meta: { requiresAuth: true, requiresCrm: true },
+    },
+    {
       path: '/admin/fulfillment',
       name: 'admin-fulfillment',
       component: () => import('../views/AdminFulfillmentView.vue'),
