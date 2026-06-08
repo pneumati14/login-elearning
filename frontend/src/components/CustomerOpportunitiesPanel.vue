@@ -587,31 +587,27 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
             <thead>
               <tr>
                 <th>{{ t('adminCustomers.oppTitle') }}</th>
-                <th>{{ t('adminCustomers.oppQuoteNumber') }}</th>
-                <th>{{ t('adminCustomers.oppNature') }}</th>
-                <th>{{ t('adminCustomers.oppType') }}</th>
                 <th>{{ t('adminCustomers.oppStage') }}</th>
                 <th class="ta-right">{{ t('adminCustomers.oppValue') }}</th>
                 <th>{{ t('adminCustomers.oppOwner') }}</th>
-                <th>{{ t('adminCustomers.oppContact') }}</th>
-                <th>{{ t('adminCustomers.oppExpectedClose') }}</th>
-                <th>{{ t('adminCustomers.oppDocuments') }}</th>
+                <th class="col-docs"><span class="sr-only">{{ t('adminCustomers.oppDocuments') }}</span>📄</th>
                 <th class="col-actions"><span class="sr-only">{{ t('adminCustomers.colActions') }}</span></th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="o in opportunities" :key="o.id" class="opp-tr" :class="{ 'is-editing': editingId === o.id }">
-                <td class="cell-title">{{ o.title }}</td>
-                <td>
-                  <span v-if="o.quoteNumber" class="quote-badge">{{ o.quoteNumber }}</span>
-                  <span v-else>—</span>
-                </td>
-                <td>
-                  <span class="nature-badge" :class="`nature-badge--${o.nature}`">
-                    {{ t('adminCustomers.oppNature_' + o.nature) }}
+                <!-- Title + quote no. + nature + type, stacked. -->
+                <td class="cell-main">
+                  <span class="cell-title">{{ o.title }}</span>
+                  <span class="cell-sub">
+                    <span v-if="o.quoteNumber" class="quote-badge">{{ o.quoteNumber }}</span>
+                    <span class="nature-badge" :class="`nature-badge--${o.nature}`">
+                      {{ t('adminCustomers.oppNature_' + o.nature) }}
+                    </span>
+                    <span class="type-chip">{{ o.typeName }}</span>
                   </span>
                 </td>
-                <td>{{ o.typeName }}</td>
+                <!-- Stage select. -->
                 <td>
                   <div class="stage-select" :class="`outcome-${o.stageOutcome}`">
                     <AppSelect
@@ -622,10 +618,17 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
                     />
                   </div>
                 </td>
-                <td class="ta-right cell-value">{{ formatMoney(o.value, o.currency) }}</td>
-                <td>{{ o.ownerName || '—' }}</td>
-                <td>{{ o.contactName || '—' }}</td>
-                <td class="cell-date">{{ o.expectedCloseDate || '—' }}</td>
+                <!-- Value + expected close date. -->
+                <td class="ta-right cell-value">
+                  {{ formatMoney(o.value, o.currency) }}
+                  <span v-if="o.expectedCloseDate" class="cell-sub-line">{{ o.expectedCloseDate }}</span>
+                </td>
+                <!-- Owner + contact. -->
+                <td class="cell-people">
+                  <span>{{ o.ownerName || '—' }}</span>
+                  <span v-if="o.contactName" class="cell-sub-line">{{ o.contactName }}</span>
+                </td>
+                <!-- Documents: compact icon links (filename in the tooltip). -->
                 <td class="cell-docs">
                   <template v-if="o.documents.length">
                     <a
@@ -636,7 +639,7 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
                       rel="noopener"
                       class="doc-indicator"
                       :title="d.originalName"
-                    >📄 {{ d.originalName }}</a>
+                    >📄</a>
                   </template>
                   <span v-else>—</span>
                 </td>
@@ -1192,26 +1195,30 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
 }
 
 .doc-indicator {
-  color: var(--login-primary, #ed2044);
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 1rem;
   text-decoration: none;
-  white-space: nowrap;
 }
 
 .doc-indicator:hover {
-  text-decoration: underline;
+  filter: brightness(0.85);
 }
 
+/* Compact icon stack — filenames live in the tooltip, not the cell. */
 .cell-docs {
-  max-width: 12rem;
+  white-space: nowrap;
 }
 
 .cell-docs .doc-indicator {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 0.15rem;
+  margin-right: 0.15rem;
+}
+
+.col-docs {
+  text-align: center;
+  white-space: nowrap;
+}
+
+td.cell-docs {
+  text-align: center;
 }
 
 .form-actions {
@@ -1299,18 +1306,48 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
 }
 
 .cell-title {
+  display: block;
   color: var(--login-secondary, #0c1c40);
   font-weight: 700;
+}
+
+/* Stacked secondary info under the title (quote no., nature, type). */
+.cell-main {
+  min-width: 12rem;
+}
+
+.cell-sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.type-chip {
+  color: #8b94a6;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+/* A muted second line in value / people cells. */
+.cell-sub-line {
+  display: block;
+  margin-top: 0.1rem;
+  color: #8b94a6;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cell-people {
+  white-space: nowrap;
 }
 
 .cell-value {
   white-space: nowrap;
   font-weight: 700;
   color: var(--login-secondary, #0c1c40);
-}
-
-.cell-date {
-  white-space: nowrap;
 }
 
 .stage-select {
