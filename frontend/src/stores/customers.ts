@@ -54,6 +54,28 @@ export interface ContactFields {
   notes: string | null
 }
 
+/** A device installed at the customer site. */
+export interface InstalledDevice {
+  id: number
+  productId: number | null
+  name: string
+  description: string | null
+  quantity: number
+  installedAt: string | null
+  location: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface InstalledDeviceFields {
+  productId: number | null
+  name: string
+  description: string | null
+  quantity: number
+  installedAt: string | null
+  location: string | null
+}
+
 export type CustomerStatus = 'existing' | 'potential'
 
 /** One recurring monthly fee item, valid for a period. */
@@ -237,6 +259,7 @@ export interface Customer {
   feeRaises: FeeRaise[]
   feeItems: FeeItem[]
   cards: CustomerCard[]
+  installedDevices: InstalledDevice[]
   address: Address
   website: string | null
   billingAddress: Address
@@ -312,6 +335,28 @@ export function toContactPayload(f: ContactFields): ContactFields {
     mobile: norm(f.mobile),
     isPrimary: f.isPrimary,
     notes: norm(f.notes),
+  }
+}
+
+export const emptyInstalledDeviceFields = (): InstalledDeviceFields => ({
+  productId: null,
+  name: '',
+  description: null,
+  quantity: 1,
+  installedAt: null,
+  location: null,
+})
+
+// Trim and normalize empty strings to null before sending.
+export function toInstalledDevicePayload(f: InstalledDeviceFields): InstalledDeviceFields {
+  const norm = (v: string | null): string | null => (null === v || '' === v.trim() ? null : v.trim())
+  return {
+    productId: f.productId,
+    name: f.name.trim(),
+    description: norm(f.description),
+    quantity: f.quantity,
+    installedAt: norm(f.installedAt),
+    location: norm(f.location),
   }
 }
 
@@ -880,6 +925,86 @@ export const useCustomersStore = defineStore('customers', () => {
     }
   }
 
+  // ── Installed devices ────────────────────────────────────────────
+  function replaceInstalledDevices(
+    customerId: number,
+    mapper: (list: InstalledDevice[]) => InstalledDevice[],
+  ): void {
+    customers.value = customers.value.map((c) =>
+      c.id === customerId ? { ...c, installedDevices: mapper(c.installedDevices) } : c,
+    )
+  }
+
+  async function createInstalledDevice(
+    customerId: number,
+    fields: InstalledDeviceFields,
+  ): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${customerId}/installed-devices`, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(toInstalledDevicePayload(fields)),
+      })
+      const data = (await response.json().catch(() => null)) as InstalledDevice | { error?: string } | null
+
+      if (!response.ok) {
+        const message = data && 'error' in data && data.error ? data.error : 'Az eszköz mentése nem sikerült.'
+        return { ok: false, error: message }
+      }
+      if (data && 'id' in data) {
+        replaceInstalledDevices(customerId, (list) => [...list, data])
+      }
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  async function updateInstalledDevice(
+    customerId: number,
+    deviceId: number,
+    fields: InstalledDeviceFields,
+  ): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${customerId}/installed-devices/${deviceId}`, {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(toInstalledDevicePayload(fields)),
+      })
+      const data = (await response.json().catch(() => null)) as InstalledDevice | { error?: string } | null
+
+      if (!response.ok) {
+        const message = data && 'error' in data && data.error ? data.error : 'A mentés nem sikerült.'
+        return { ok: false, error: message }
+      }
+      if (data && 'id' in data) {
+        replaceInstalledDevices(customerId, (list) => list.map((d) => (d.id === deviceId ? data : d)))
+      }
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  async function deleteInstalledDevice(customerId: number, deviceId: number): Promise<MutationResult> {
+    try {
+      const response = await fetch(`${API_URL}/admin/customers/${customerId}/installed-devices/${deviceId}`, {
+        method: 'DELETE',
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      })
+      if (!response.ok) {
+        return { ok: false, error: 'A törlés nem sikerült.' }
+      }
+      replaceInstalledDevices(customerId, (list) => list.filter((d) => d.id !== deviceId))
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
   async function deleteCustomer(id: number): Promise<MutationResult> {
     try {
       const response = await fetch(`${API_URL}/admin/customers/${id}`, {
@@ -935,6 +1060,9 @@ export const useCustomersStore = defineStore('customers', () => {
     createContact,
     updateContact,
     deleteContact,
+    createInstalledDevice,
+    updateInstalledDevice,
+    deleteInstalledDevice,
   }
 })
 

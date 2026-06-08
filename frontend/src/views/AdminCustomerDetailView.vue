@@ -17,6 +17,7 @@ import CustomerEditor from '@/components/CustomerEditor.vue'
 import CustomerFeesPanel from '@/components/CustomerFeesPanel.vue'
 import CustomerBillingPanel from '@/components/CustomerBillingPanel.vue'
 import CustomerCardsPanel from '@/components/CustomerCardsPanel.vue'
+import CustomerInstalledDevicesPanel from '@/components/CustomerInstalledDevicesPanel.vue'
 import CustomerContactsPanel from '@/components/CustomerContactsPanel.vue'
 import CustomerOpportunitiesPanel from '@/components/CustomerOpportunitiesPanel.vue'
 import CustomerArchitecturePanel from '@/components/CustomerArchitecturePanel.vue'
@@ -36,7 +37,7 @@ const loading = ref(true)
 const notFound = ref(false)
 const editing = ref(false)
 
-type TabKey = 'overview' | 'fees' | 'billing' | 'cards' | 'contacts' | 'opportunities' | 'architecture' | 'timeline'
+type TabKey = 'overview' | 'fees' | 'billing' | 'cards' | 'devices' | 'contacts' | 'opportunities' | 'architecture' | 'timeline'
 const activeTab = ref<TabKey>('overview')
 
 const tabs: { key: TabKey; label: string; ready: boolean }[] = [
@@ -44,6 +45,7 @@ const tabs: { key: TabKey; label: string; ready: boolean }[] = [
   { key: 'fees', label: 'tabFees', ready: true },
   { key: 'billing', label: 'tabBilling', ready: true },
   { key: 'cards', label: 'tabCards', ready: true },
+  { key: 'devices', label: 'tabDevices', ready: true },
   { key: 'contacts', label: 'tabContacts', ready: true },
   { key: 'opportunities', label: 'tabOpportunities', ready: true },
   { key: 'architecture', label: 'tabArchitecture', ready: true },
@@ -404,6 +406,11 @@ function salesPeriod(a: SalesAssignment): string {
         <!-- ── Cards ────────────────────────────────────────────────── -->
         <div v-else-if="activeTab === 'cards'" class="cust-panel">
           <CustomerCardsPanel :customer="customer" />
+        </div>
+
+        <!-- ── Installed devices ────────────────────────────────────── -->
+        <div v-else-if="activeTab === 'devices'" class="cust-panel">
+          <CustomerInstalledDevicesPanel :customer="customer" />
         </div>
 
         <!-- ── Contacts ─────────────────────────────────────────────── -->

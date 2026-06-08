@@ -113,6 +113,15 @@ class Customer
     private Collection $cards;
 
     /**
+     * Devices installed at the customer site. Removed with the customer.
+     *
+     * @var Collection<int, CustomerInstalledDevice>
+     */
+    #[ORM\OneToMany(mappedBy: 'customer', targetEntity: CustomerInstalledDevice::class, cascade: ['remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['createdAt' => 'ASC', 'id' => 'ASC'])]
+    private Collection $installedDevices;
+
+    /**
      * Sales opportunities (deals) for this customer. Removed with the customer.
      *
      * @var Collection<int, Opportunity>
@@ -218,6 +227,7 @@ class Customer
         $this->contacts = new ArrayCollection();
         $this->feeItems = new ArrayCollection();
         $this->cards = new ArrayCollection();
+        $this->installedDevices = new ArrayCollection();
         $this->opportunities = new ArrayCollection();
         $this->activities = new ArrayCollection();
         $this->contractFiles = new ArrayCollection();
@@ -397,6 +407,14 @@ class Customer
     public function getFeeRaises(): Collection
     {
         return $this->feeRaises;
+    }
+
+    /**
+     * @return Collection<int, CustomerInstalledDevice>
+     */
+    public function getInstalledDevices(): Collection
+    {
+        return $this->installedDevices;
     }
 
     /**

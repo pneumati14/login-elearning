@@ -7,6 +7,7 @@ use App\Entity\Contact;
 use App\Entity\Customer;
 use App\Entity\CustomerCard;
 use App\Entity\CustomerFeeItem;
+use App\Entity\CustomerInstalledDevice;
 use App\Entity\CustomerFeeRaise;
 use App\Entity\CustomerSalesAssignment;
 use App\Repository\CustomerRepository;
@@ -272,6 +273,10 @@ final class AdminCustomerController extends AbstractController
             'cards' => array_map(
                 fn (CustomerCard $card): array => AdminCustomerCardController::serializeCard($card),
                 $c->getCards()->toArray(),
+            ),
+            'installedDevices' => array_map(
+                fn (CustomerInstalledDevice $device): array => AdminCustomerInstalledDeviceController::serializeDevice($device),
+                $c->getInstalledDevices()->toArray(),
             ),
             'address' => $c->getAddress()->toArray(),
             'website' => $c->getWebsite(),
