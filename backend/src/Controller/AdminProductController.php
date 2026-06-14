@@ -105,8 +105,7 @@ final class AdminProductController extends AbstractController
         $product
             ->setName($name)
             ->setSku($this->nullableString($payload, 'sku'))
-            ->setDescription($this->nullableString($payload, 'description'))
-            ->setUnitPrice($this->parseDecimal($payload['unitPrice'] ?? null));
+            ->setDescription($this->nullableString($payload, 'description'));
 
         // Category / sub-category. The category is required by the form,
         // but kept lenient here so legacy rows and inline price edits do
@@ -136,6 +135,27 @@ final class AdminProductController extends AbstractController
                     }
                     $product->setSubcategory($subcategory);
                 }
+            }
+        }
+
+        // Unit price. Split-pricing categories (e.g. Hardver) compute the
+        // unit price from a material part + a fee/labour part (a missing
+        // part counts as 0); every other category uses the plain field.
+        if ($product->getCategory()?->isSplitUnitPrice() ?? false) {
+            $material = $this->parseDecimal($payload['materialUnitPrice'] ?? null);
+            $fee = $this->parseDecimal($payload['feeUnitPrice'] ?? null);
+            $product->setMaterialUnitPrice($material);
+            $product->setFeeUnitPrice($fee);
+            $product->setUnitPrice(
+                null === $material && null === $fee
+                    ? null
+                    : number_format((float) ($material ?? '0') + (float) ($fee ?? '0'), 2, '.', ''),
+            );
+        } else {
+            $product->setMaterialUnitPrice(null);
+            $product->setFeeUnitPrice(null);
+            if (\array_key_exists('unitPrice', $payload)) {
+                $product->setUnitPrice($this->parseDecimal($payload['unitPrice'] ?? null));
             }
         }
 
@@ -213,6 +233,8 @@ final class AdminProductController extends AbstractController
             'subcategoryName' => $p->getSubcategory()?->getName(),
             'description' => $p->getDescription(),
             'unitPrice' => $p->getUnitPrice(),
+            'materialUnitPrice' => $p->getMaterialUnitPrice(),
+            'feeUnitPrice' => $p->getFeeUnitPrice(),
             'currency' => $p->getCurrency(),
             'isActive' => $p->isActive(),
             'validFrom' => $p->getValidFrom()?->format('Y-m-d'),

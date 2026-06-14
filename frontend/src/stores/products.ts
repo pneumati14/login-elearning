@@ -18,6 +18,8 @@ export interface Product {
   subcategoryName: string | null
   description: string | null
   unitPrice: string | null
+  materialUnitPrice: string | null
+  feeUnitPrice: string | null
   currency: Currency
   isActive: boolean
   validFrom: string | null
@@ -33,6 +35,8 @@ export interface ProductFields {
   subcategoryId: number | null
   description: string | null
   unitPrice: string | null
+  materialUnitPrice: string | null
+  feeUnitPrice: string | null
   currency: Currency
   isActive: boolean
   validFrom: string | null
@@ -47,6 +51,8 @@ export function emptyProductFields(): ProductFields {
     subcategoryId: null,
     description: null,
     unitPrice: null,
+    materialUnitPrice: null,
+    feeUnitPrice: null,
     currency: 'HUF',
     isActive: true,
     validFrom: null,

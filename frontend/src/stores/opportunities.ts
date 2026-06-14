@@ -22,6 +22,9 @@ export interface LineItem {
   productName: string
   quantity: string
   unitPrice: string
+  /** Split parts for hardware lines; null for plain lines. */
+  materialUnitPrice: string | null
+  feeUnitPrice: string | null
   lineTotal: string
 }
 
@@ -31,6 +34,9 @@ export interface LineItemFields {
   productName: string
   quantity: string
   unitPrice: string
+  /** Split parts for hardware lines; null for plain lines. */
+  materialUnitPrice: string | null
+  feeUnitPrice: string | null
 }
 
 export const EFFORT_TYPES = ['development', 'pm'] as const

@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useCustomersStore, type Customer, type FeeItem, type FeeItemFields } from '@/stores/customers'
 import { useProductsStore, productStatus } from '@/stores/products'
+import { useProductCategoriesStore } from '@/stores/productCategories'
 import { useMoneyFormat } from '@/stores/currencySettings'
 import AppSelect from '@/components/AppSelect.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
@@ -15,20 +16,49 @@ const { t } = useI18n()
 const store = useCustomersStore()
 const productsStore = useProductsStore()
 const { products } = storeToRefs(productsStore)
+const categoriesStore = useProductCategoriesStore()
+const { categories } = storeToRefs(categoriesStore)
 
 const CURRENCIES = ['HUF', 'EUR', 'USD']
 
-// Active catalogue products for the picker; an item's already-linked
-// product stays selectable even if it is inactive by now.
+// ── Catalogue filter for the product picker ──────────────────────────
+// Narrows the picker by product category / subcategory (the taxonomy);
+// purely a UI aid, nothing is persisted on the fee item.
+const catFilter = ref<number | null>(null)
+const subcatFilter = ref<number | null>(null)
+
+// Picking a new category clears the subcategory; the subcategory select
+// is disabled until a category is chosen.
+function onCatFilterChange(): void {
+  subcatFilter.value = null
+}
+
+function resetProductFilter(): void {
+  catFilter.value = null
+  subcatFilter.value = null
+}
+
+// Active catalogue products for the picker, narrowed by the category/
+// subcategory filter. The item's already-linked product and the currently
+// picked one stay selectable even if inactive or filtered out, so the
+// chosen product never silently disappears from the list.
 const productOptions = computed(() => {
   const linkedId = editingId.value ? props.customer.feeItems.find((i) => i.id === editingId.value)?.productId : null
   return products.value
-    .filter((p) => 'active' === productStatus(p) || p.id === linkedId)
+    .filter((p) => {
+      const alwaysKeep = p.id === linkedId || p.id === form.productId
+      if (alwaysKeep) return true
+      if ('active' !== productStatus(p)) return false
+      if (null !== catFilter.value && p.categoryId !== catFilter.value) return false
+      if (null !== subcatFilter.value && p.subcategoryId !== subcatFilter.value) return false
+      return true
+    })
     .sort((a, b) => a.name.localeCompare(b.name, 'hu'))
 })
 
 onMounted(() => {
   if (0 === products.value.length) productsStore.fetchProducts()
+  if (0 === categories.value.length) categoriesStore.fetchCategories()
 })
 
 // ── Total discount (applies to every fee item) ──────────────────────
@@ -70,6 +100,17 @@ const productSelectOptions = computed<{ value: number | null; label: string }[]>
 const currencySelectOptions = computed<{ value: string; label: string }[]>(() =>
   CURRENCIES.map((c) => ({ value: c, label: c })),
 )
+const categorySelectOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminCustomers.feeCatAll') },
+  ...categories.value.map((c) => ({ value: c.id, label: c.name })),
+])
+const subcategorySelectOptions = computed<{ value: number | null; label: string }[]>(() => {
+  const cat = categories.value.find((c) => c.id === catFilter.value)
+  return [
+    { value: null, label: t('adminCustomers.feeSubcatAll') },
+    ...(cat?.subcategories ?? []).map((s) => ({ value: s.id, label: s.name })),
+  ]
+})
 
 // Picking a product prefills the editable fields; clearing it keeps them.
 // For per-head items the catalogue price is the unit price.
@@ -155,6 +196,7 @@ function openCreate(): void {
   Object.assign(form, emptyFields())
   editingId.value = null
   formError.value = null
+  resetProductFilter()
   showForm.value = true
 }
 
@@ -173,6 +215,7 @@ function openEdit(item: FeeItem): void {
   })
   editingId.value = item.id
   formError.value = null
+  resetProductFilter()
   showForm.value = true
   showRaise.value = false
 }
@@ -363,6 +406,14 @@ async function onRaise(): Promise<void> {
     <form v-if="showForm" class="fee-form" @submit.prevent="onSubmit">
       <h3>{{ null === editingId ? t('adminCustomers.feeAddButton') : t('admin.edit') }}</h3>
       <div class="fee-form-grid">
+        <label class="field">
+          <span>{{ t('adminCustomers.feeFilterCategory') }}</span>
+          <AppSelect v-model="catFilter" :options="categorySelectOptions" @change="onCatFilterChange" />
+        </label>
+        <label class="field">
+          <span>{{ t('adminCustomers.feeFilterSubcategory') }}</span>
+          <AppSelect v-model="subcatFilter" :options="subcategorySelectOptions" :disabled="null === catFilter" />
+        </label>
         <label class="field field--wide">
           <span>{{ t('adminCustomers.feeProduct') }}</span>
           <AppSelect v-model="form.productId" :options="productSelectOptions" @change="onProductPicked" />

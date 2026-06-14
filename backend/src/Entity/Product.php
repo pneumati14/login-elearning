@@ -51,6 +51,18 @@ class Product
     #[ORM\Column(type: 'decimal', precision: 14, scale: 2, nullable: true)]
     private ?string $unitPrice = null;
 
+    /**
+     * Material part of the unit price, used only when the product's
+     * category has split pricing. The plain unitPrice is then the sum of
+     * this and feeUnitPrice (null part counts as 0).
+     */
+    #[ORM\Column(type: 'decimal', precision: 14, scale: 2, nullable: true)]
+    private ?string $materialUnitPrice = null;
+
+    /** Fee/labour part of the unit price (split-pricing categories only). */
+    #[ORM\Column(type: 'decimal', precision: 14, scale: 2, nullable: true)]
+    private ?string $feeUnitPrice = null;
+
     #[ORM\Column(length: 3)]
     private string $currency = self::DEFAULT_CURRENCY;
 
@@ -149,6 +161,30 @@ class Product
     public function setUnitPrice(?string $unitPrice): static
     {
         $this->unitPrice = $unitPrice;
+
+        return $this;
+    }
+
+    public function getMaterialUnitPrice(): ?string
+    {
+        return $this->materialUnitPrice;
+    }
+
+    public function setMaterialUnitPrice(?string $materialUnitPrice): static
+    {
+        $this->materialUnitPrice = $materialUnitPrice;
+
+        return $this;
+    }
+
+    public function getFeeUnitPrice(): ?string
+    {
+        return $this->feeUnitPrice;
+    }
+
+    public function setFeeUnitPrice(?string $feeUnitPrice): static
+    {
+        $this->feeUnitPrice = $feeUnitPrice;
 
         return $this;
     }

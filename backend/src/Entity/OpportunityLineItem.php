@@ -40,6 +40,17 @@ class OpportunityLineItem
     #[ORM\Column(type: 'decimal', precision: 14, scale: 2)]
     private string $unitPrice = '0';
 
+    /**
+     * Split unit-price parts for hardware (split-pricing category) lines:
+     * the unit price is then material + fee. Null for plain lines, where
+     * the unit price is entered directly.
+     */
+    #[ORM\Column(type: 'decimal', precision: 14, scale: 2, nullable: true)]
+    private ?string $materialUnitPrice = null;
+
+    #[ORM\Column(type: 'decimal', precision: 14, scale: 2, nullable: true)]
+    private ?string $feeUnitPrice = null;
+
     /** Display order within the opportunity. */
     #[ORM\Column]
     private int $position = 0;
@@ -105,6 +116,30 @@ class OpportunityLineItem
     public function setUnitPrice(string $unitPrice): static
     {
         $this->unitPrice = $unitPrice;
+
+        return $this;
+    }
+
+    public function getMaterialUnitPrice(): ?string
+    {
+        return $this->materialUnitPrice;
+    }
+
+    public function setMaterialUnitPrice(?string $materialUnitPrice): static
+    {
+        $this->materialUnitPrice = $materialUnitPrice;
+
+        return $this;
+    }
+
+    public function getFeeUnitPrice(): ?string
+    {
+        return $this->feeUnitPrice;
+    }
+
+    public function setFeeUnitPrice(?string $feeUnitPrice): static
+    {
+        $this->feeUnitPrice = $feeUnitPrice;
 
         return $this;
     }

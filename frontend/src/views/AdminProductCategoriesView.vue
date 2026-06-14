@@ -23,13 +23,15 @@ onMounted(async () => {
 
 // ── New category ─────────────────────────────────────────────────────
 const newCategoryName = ref('')
+const newCategorySplit = ref(false)
 
 async function onCreateCategory(): Promise<void> {
   const name = newCategoryName.value.trim()
   if ('' === name) return
-  const result = await store.createCategory(name)
+  const result = await store.createCategory(name, newCategorySplit.value)
   if (result.ok) {
     newCategoryName.value = ''
+    newCategorySplit.value = false
   } else {
     window.alert(result.error ?? t('admin.saveFailed'))
   }
@@ -38,16 +40,18 @@ async function onCreateCategory(): Promise<void> {
 // ── Rename / delete category ─────────────────────────────────────────
 const editingCategoryId = ref<number | null>(null)
 const editCategoryName = ref('')
+const editCategorySplit = ref(false)
 
 function startEditCategory(c: ProductCategory): void {
   editingCategoryId.value = c.id
   editCategoryName.value = c.name
+  editCategorySplit.value = c.splitUnitPrice
 }
 
 async function saveEditCategory(c: ProductCategory): Promise<void> {
   const name = editCategoryName.value.trim()
   if ('' === name) return
-  const result = await store.updateCategory(c.id, name)
+  const result = await store.updateCategory(c.id, name, editCategorySplit.value)
   if (result.ok) {
     editingCategoryId.value = null
   } else {
@@ -161,6 +165,10 @@ async function onDrop(c: ProductCategory, index: number): Promise<void> {
             :placeholder="t('adminProductCategories.categoryNamePlaceholder')"
             @keyup.enter="onCreateCategory"
           />
+          <label class="split-toggle" :title="t('adminProductCategories.splitUnitPriceHint')">
+            <input v-model="newCategorySplit" type="checkbox" />
+            <span>{{ t('adminProductCategories.splitUnitPrice') }}</span>
+          </label>
           <button type="button" class="btn-submit" @click="onCreateCategory">
             + {{ t('adminProductCategories.newCategory') }}
           </button>
@@ -171,13 +179,20 @@ async function onDrop(c: ProductCategory, index: number): Promise<void> {
           <div class="pc-head">
             <template v-if="editingCategoryId === c.id">
               <input v-model="editCategoryName" type="text" maxlength="255" class="pc-input" @keyup.enter="saveEditCategory(c)" />
+              <label class="split-toggle" :title="t('adminProductCategories.splitUnitPriceHint')">
+                <input v-model="editCategorySplit" type="checkbox" />
+                <span>{{ t('adminProductCategories.splitUnitPrice') }}</span>
+              </label>
               <div class="pc-head-actions">
                 <button type="button" class="btn-mini" @click="saveEditCategory(c)">{{ t('admin.save') }}</button>
                 <button type="button" class="btn-mini btn-mini--ghost" @click="editingCategoryId = null">{{ t('adminUsers.cancel') }}</button>
               </div>
             </template>
             <template v-else>
-              <h2>{{ c.name }}</h2>
+              <h2>
+                {{ c.name }}
+                <span v-if="c.splitUnitPrice" class="split-badge">{{ t('adminProductCategories.splitUnitPriceBadge') }}</span>
+              </h2>
               <div class="pc-head-actions">
                 <button type="button" class="btn-icon" :title="t('admin.edit')" :aria-label="t('admin.edit')" @click="startEditCategory(c)">
                   <IconEdit />
@@ -338,6 +353,34 @@ async function onDrop(c: ProductCategory, index: number): Promise<void> {
   color: var(--login-secondary, #0c1c40);
   font-size: 1.25rem;
   font-weight: 700;
+}
+
+.split-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.split-toggle input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--login-primary, #ed2044);
+}
+
+.split-badge {
+  margin-left: 0.5rem;
+  padding: 0.12rem 0.5rem;
+  background: #e7eefc;
+  border-radius: 0.4rem;
+  color: #2b59c3;
+  font-size: 0.72rem;
+  font-weight: 700;
+  vertical-align: middle;
 }
 
 .pc-head-actions {

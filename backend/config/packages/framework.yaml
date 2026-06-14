@@ -3,7 +3,16 @@ framework:
     secret: '%env(APP_SECRET)%'
 
     # Note that the session will be started ONLY if you read or write from it.
-    session: true
+    session:
+        handler_id: ~          # keep PHP's native file storage
+        # Keep a user signed in through a full work day of activity. PHP's
+        # default gc_maxlifetime is only 1440s (24 min), which silently
+        # garbage-collects idle sessions and logs people out.
+        gc_maxlifetime: 28800  # 8 hours
+        cookie_lifetime: 0     # session cookie: clears when the browser closes
+        cookie_secure: auto    # Secure flag whenever served over HTTPS
+        cookie_samesite: lax
+        cookie_httponly: true
 
     #esi: true
     #fragments: true

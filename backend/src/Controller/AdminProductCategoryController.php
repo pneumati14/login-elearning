@@ -54,6 +54,9 @@ final class AdminProductCategoryController extends AbstractController
 
         $category = new ProductCategory();
         $category->setName($name)->setPosition($max + 1);
+        if (\array_key_exists('splitUnitPrice', $payload)) {
+            $category->setSplitUnitPrice((bool) $payload['splitUnitPrice']);
+        }
         $this->entityManager->persist($category);
         $this->entityManager->flush();
 
@@ -71,6 +74,9 @@ final class AdminProductCategoryController extends AbstractController
         }
 
         $category->setName($name);
+        if (\array_key_exists('splitUnitPrice', $payload)) {
+            $category->setSplitUnitPrice((bool) $payload['splitUnitPrice']);
+        }
         $category->touch();
         $this->entityManager->flush();
 
@@ -215,6 +221,7 @@ final class AdminProductCategoryController extends AbstractController
             'id' => $c->getId(),
             'name' => $c->getName(),
             'position' => $c->getPosition(),
+            'splitUnitPrice' => $c->isSplitUnitPrice(),
             'subcategories' => array_map(
                 fn (ProductSubcategory $s): array => [
                     'id' => $s->getId(),

@@ -19,8 +19,10 @@ import {
 } from '@/stores/opportunities'
 import { useOpportunityTypesStore, typeStatus, type OpportunityType } from '@/stores/opportunityTypes'
 import { useProductsStore } from '@/stores/products'
+import { useProductCategoriesStore } from '@/stores/productCategories'
 import ActivityList from '@/components/ActivityList.vue'
 import AppSelect from '@/components/AppSelect.vue'
+import OpportunityLineItems from '@/components/OpportunityLineItems.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 
@@ -30,6 +32,7 @@ const { t } = useI18n()
 const store = useOpportunitiesStore()
 const typesStore = useOpportunityTypesStore()
 const productsStore = useProductsStore()
+const categoriesStore = useProductCategoriesStore()
 
 const opportunities = computed<Opportunity[]>(() => store.list(props.customer.id))
 
@@ -72,6 +75,7 @@ async function load(): Promise<void> {
   await Promise.all([
     typesStore.fetchTypes(),
     productsStore.fetchProducts(),
+    categoriesStore.fetchCategories(),
     store.fetchOpportunities(props.customer.id),
   ])
   pickInitialType()
@@ -91,6 +95,26 @@ const showForm = ref(false)
 const editingId = ref<number | null>(null)
 const form = reactive<OpportunityFields>(emptyOpportunityFields())
 const saving = ref(false)
+
+/**
+ * Transient per-line product filters (category + subcategory), kept in
+ * lockstep with form.lineItems by index. They only narrow the product
+ * picker and are never persisted, so they live outside the line objects.
+ */
+interface LineFilter {
+  categoryId: number | null
+  subcategoryId: number | null
+}
+const lineFilters = reactive<LineFilter[]>([])
+
+/** Build filters for the current lines, pre-filled from each picked product. */
+function rebuildLineFilters(): void {
+  const next = form.lineItems.map<LineFilter>((li) => {
+    const p = null === li.productId ? undefined : productsStore.products.find((x) => x.id === li.productId)
+    return { categoryId: p?.categoryId ?? null, subcategoryId: p?.subcategoryId ?? null }
+  })
+  lineFilters.splice(0, lineFilters.length, ...next)
+}
 const formError = ref<string | null>(null)
 
 const formStages = computed(() => typesStore.types.find((tp) => tp.id === form.typeId)?.stages ?? [])
@@ -105,6 +129,7 @@ function openNew(): void {
   Object.assign(form, emptyOpportunityFields())
   form.typeId = selectedTypeId.value ?? usableTypes.value[0]?.id ?? null
   form.stageId = formStages.value[0]?.id ?? null
+  rebuildLineFilters()
   formError.value = null
   showForm.value = true
 }
@@ -126,6 +151,8 @@ function openEdit(o: Opportunity): void {
     productName: li.productName,
     quantity: li.quantity,
     unitPrice: li.unitPrice,
+    materialUnitPrice: li.materialUnitPrice,
+    feeUnitPrice: li.feeUnitPrice,
   }))
   form.effortEstimates = o.effortEstimates.map((ee) => ({
     name: ee.name,
@@ -133,6 +160,7 @@ function openEdit(o: Opportunity): void {
     amount: ee.amount,
     unit: ee.unit,
   }))
+  rebuildLineFilters()
   formError.value = null
   showForm.value = true
 }
@@ -151,20 +179,121 @@ watch(
 
 // ── Line item editing ─────────────────────────────────────────────────
 function addLine(): void {
-  form.lineItems.push({ productId: null, productName: '', quantity: '1', unitPrice: '0' })
+  form.lineItems.push({
+    productId: null,
+    productName: '',
+    quantity: '1',
+    unitPrice: '0',
+    materialUnitPrice: null,
+    feeUnitPrice: null,
+  })
+  lineFilters.push({ categoryId: null, subcategoryId: null })
 }
 
 function removeLine(index: number): void {
   form.lineItems.splice(index, 1)
+  lineFilters.splice(index, 1)
+}
+
+function toNumber(value: string | null): number {
+  if (!value) return 0
+  const n = Number(String(value).replace(',', '.').replace(/\s/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+/** A category prices its unit as material + fee (e.g. Hardver)? */
+function categoryIsSplit(categoryId: number | null): boolean {
+  if (null === categoryId) return false
+  return categoriesStore.categories.find((c) => c.id === categoryId)?.splitUnitPrice ?? false
+}
+
+/** A line is split when its picked catalogue product sits in a split category. */
+function lineIsSplit(line: LineItemFields): boolean {
+  if (null === line.productId) return false
+  const product = productsStore.products.find((p) => p.id === line.productId)
+  return !!product && categoryIsSplit(product.categoryId)
+}
+
+/** Keep a split line's unit price in sync with its material + fee parts. */
+function onSplitPartChange(line: LineItemFields): void {
+  line.unitPrice = (toNumber(line.materialUnitPrice) + toNumber(line.feeUnitPrice)).toFixed(2)
 }
 
 function onPickProduct(line: LineItemFields): void {
-  if (null === line.productId) return
+  if (null === line.productId) {
+    line.materialUnitPrice = null
+    line.feeUnitPrice = null
+    return
+  }
   const product = productsStore.products.find((p) => p.id === line.productId)
-  if (product) {
-    line.productName = product.name
+  if (!product) return
+  line.productName = product.name
+  if (categoryIsSplit(product.categoryId)) {
+    // Hardware: prefill the parts and derive the unit price from them.
+    line.materialUnitPrice = product.materialUnitPrice ?? '0'
+    line.feeUnitPrice = product.feeUnitPrice ?? '0'
+    onSplitPartChange(line)
+  } else {
+    line.materialUnitPrice = null
+    line.feeUnitPrice = null
     line.unitPrice = product.unitPrice ?? '0'
   }
+}
+
+// ── Per-line product filtering (category + subcategory) ───────────────
+const categoryFilterOptions = computed<{ value: number | null; label: string }[]>(() => [
+  { value: null, label: t('adminCustomers.oppFilterAllCategories') },
+  ...categoriesStore.categories.map((c) => ({ value: c.id, label: c.name })),
+])
+
+function subcategoryFilterOptions(index: number): { value: number | null; label: string }[] {
+  const categoryId = lineFilters[index]?.categoryId ?? null
+  const category = categoriesStore.categories.find((c) => c.id === categoryId)
+  return [
+    { value: null, label: t('adminCustomers.oppFilterAllSubcategories') },
+    ...(category?.subcategories ?? []).map((s) => ({ value: s.id, label: s.name })),
+  ]
+}
+
+/** Product options for a line, narrowed by that line's category/subcategory filter. */
+function productOptionsForLine(index: number): { value: number | null; label: string }[] {
+  const filter = lineFilters[index]
+  let list = productsStore.products
+  if (filter && null !== filter.categoryId) {
+    list = list.filter((p) => p.categoryId === filter.categoryId)
+  }
+  if (filter && null !== filter.subcategoryId) {
+    list = list.filter((p) => p.subcategoryId === filter.subcategoryId)
+  }
+  return [{ value: null, label: t('adminCustomers.oppCustomLine') }, ...list.map((p) => ({ value: p.id, label: p.name }))]
+}
+
+/** If the picked catalogue product no longer matches the filter, clear it. */
+function pruneFilteredProduct(index: number): void {
+  const line = form.lineItems[index]
+  const filter = lineFilters[index]
+  if (!line || !filter || null === line.productId) return
+  const product = productsStore.products.find((p) => p.id === line.productId)
+  if (!product) return
+  const mismatch =
+    (null !== filter.categoryId && product.categoryId !== filter.categoryId) ||
+    (null !== filter.subcategoryId && product.subcategoryId !== filter.subcategoryId)
+  if (mismatch) {
+    line.productId = null
+    line.productName = ''
+    line.unitPrice = '0'
+    line.materialUnitPrice = null
+    line.feeUnitPrice = null
+  }
+}
+
+function onLineCategoryChange(index: number): void {
+  if (lineFilters[index]) lineFilters[index].subcategoryId = null
+  pruneFilteredProduct(index)
+}
+
+function onLineSubcategoryChange(index: number): void {
+  pruneFilteredProduct(index)
 }
 
 function lineTotal(line: LineItemFields): number {
@@ -327,6 +456,15 @@ function toggleHistory(id: number): void {
   expandedId.value = expandedId.value === id ? null : id
 }
 
+// ── Line-item expansion (list rows) ───────────────────────────────────
+// Clicking the row's caret reveals a read-only breakdown of its quote
+// lines; several rows may be open at once.
+const expandedLines = reactive(new Set<number>())
+function toggleLines(id: number): void {
+  if (expandedLines.has(id)) expandedLines.delete(id)
+  else expandedLines.add(id)
+}
+
 function shortDate(iso: string): string {
   return iso.slice(0, 10)
 }
@@ -358,10 +496,6 @@ const contactSelectOptions = computed<{ value: number | null; label: string }[]>
     value: ct.id,
     label: `${ct.lastName} ${ct.firstName}`.trim() || ct.email || '',
   })),
-])
-const productSelectOptions = computed<{ value: number | null; label: string }[]>(() => [
-  { value: null, label: t('adminCustomers.oppCustomLine') },
-  ...productsStore.products.map((p) => ({ value: p.id, label: p.name })),
 ])
 const effortTypeSelectOptions = computed<{ value: EffortType; label: string }[]>(() => [
   { value: 'development', label: t('adminCustomers.oppEffortTypeDev') },
@@ -472,7 +606,22 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
             </div>
             <div v-for="(li, i) in form.lineItems" :key="i" class="line-row">
               <div class="line-product">
-                <AppSelect v-model="li.productId" :options="productSelectOptions" @change="onPickProduct(li)" />
+                <!-- Category + subcategory filters narrow the product picker. -->
+                <div class="line-filters">
+                  <AppSelect
+                    v-model="lineFilters[i]!.categoryId"
+                    :options="categoryFilterOptions"
+                    compact
+                    @change="onLineCategoryChange(i)"
+                  />
+                  <AppSelect
+                    v-model="lineFilters[i]!.subcategoryId"
+                    :options="subcategoryFilterOptions(i)"
+                    compact
+                    @change="onLineSubcategoryChange(i)"
+                  />
+                </div>
+                <AppSelect v-model="li.productId" :options="productOptionsForLine(i)" @change="onPickProduct(li)" />
                 <!-- The name input is only for custom lines; for a catalogue
                      product the select already shows the name. -->
                 <input
@@ -484,7 +633,32 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
                 />
               </div>
               <input v-model="li.quantity" type="text" inputmode="decimal" class="line-num" />
-              <input v-model="li.unitPrice" type="text" inputmode="decimal" class="line-num" />
+              <!-- Hardware lines split the unit price into material + fee
+                   (sum shown below); plain lines keep a single field. -->
+              <div v-if="lineIsSplit(li)" class="line-split">
+                <label class="line-split-part">
+                  <span>{{ t('adminCustomers.oppMaterialShort') }}</span>
+                  <input
+                    v-model="li.materialUnitPrice"
+                    type="text"
+                    inputmode="decimal"
+                    class="line-num"
+                    @input="onSplitPartChange(li)"
+                  />
+                </label>
+                <label class="line-split-part">
+                  <span>{{ t('adminCustomers.oppFeeShort') }}</span>
+                  <input
+                    v-model="li.feeUnitPrice"
+                    type="text"
+                    inputmode="decimal"
+                    class="line-num"
+                    @input="onSplitPartChange(li)"
+                  />
+                </label>
+                <span class="line-split-sum">= {{ formatMoney(li.unitPrice, form.currency) }}</span>
+              </div>
+              <input v-else v-model="li.unitPrice" type="text" inputmode="decimal" class="line-num" />
               <span class="line-total ta-right">{{ formatMoney(String(lineTotal(li).toFixed(2)), form.currency) }}</span>
               <button type="button" class="btn-icon btn-icon--danger" :title="t('admin.delete')" :aria-label="t('admin.delete')" @click="removeLine(i)">
                 <IconDelete />
@@ -595,10 +769,23 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
               </tr>
             </thead>
             <tbody>
-              <tr v-for="o in opportunities" :key="o.id" class="opp-tr" :class="{ 'is-editing': editingId === o.id }">
+              <template v-for="o in opportunities" :key="o.id">
+              <tr class="opp-tr" :class="{ 'is-editing': editingId === o.id, 'has-detail': expandedLines.has(o.id) }">
                 <!-- Title + nature + type, stacked (quote no. sits with the PDF). -->
                 <td class="cell-main">
-                  <span class="cell-title">{{ o.title }}</span>
+                  <span class="cell-title">
+                    <button
+                      v-if="o.lineItems.length"
+                      type="button"
+                      class="line-toggle"
+                      :class="{ 'is-open': expandedLines.has(o.id) }"
+                      :aria-expanded="expandedLines.has(o.id)"
+                      :aria-label="t('adminCustomers.oppLineItems')"
+                      :title="t('adminCustomers.oppLineItems')"
+                      @click="toggleLines(o.id)"
+                    >▸</button>
+                    {{ o.title }}
+                  </span>
                   <span class="cell-sub">
                     <span class="nature-badge" :class="`nature-badge--${o.nature}`">
                       {{ t('adminCustomers.oppNature_' + o.nature) }}
@@ -652,6 +839,14 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
                   </div>
                 </td>
               </tr>
+
+              <!-- ── Read-only line-item breakdown (expanded) ─────────── -->
+              <tr v-if="expandedLines.has(o.id)" class="opp-detail-tr">
+                <td :colspan="6" class="opp-detail-cell">
+                  <OpportunityLineItems :line-items="o.lineItems" :currency="o.currency" :total="o.lineItemsTotal" />
+                </td>
+              </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -945,6 +1140,16 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
   min-width: 0;
 }
 
+.line-filters {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.line-filters :deep(.app-select) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .line-product select,
 .line-product input,
 .line-num {
@@ -958,6 +1163,40 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
 }
 
 .line-num {
+  text-align: right;
+}
+
+/* ── Split unit price (material + fee) for hardware lines ──────────── */
+.line-split {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.line-split-part {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.line-split-part > span {
+  color: #8b94a6;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.line-split-part .line-num {
+  width: 100%;
+}
+
+.line-split-sum {
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.78rem;
+  font-weight: 700;
   text-align: right;
 }
 
@@ -1365,6 +1604,44 @@ function stageSelectOptions(typeId: number): { value: number; label: string }[] 
 .stage-select.outcome-lost :deep(.app-select-toggle) {
   border-color: #b3122e;
   color: #b3122e;
+}
+
+/* ── Expanded line-item breakdown (list rows) ─────────────────────── */
+.line-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-right: 0.3rem;
+  padding: 0;
+  background: none;
+  border: none;
+  color: #8b94a6;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.15s, color 0.15s;
+}
+
+.line-toggle:hover {
+  color: var(--login-primary, #ed2044);
+}
+
+.line-toggle.is-open {
+  transform: rotate(90deg);
+  color: var(--login-secondary, #0c1c40);
+}
+
+.opp-tr.has-detail > td {
+  background: #f7f8fb;
+  border-bottom-color: transparent;
+}
+
+.opp-detail-tr > td {
+  padding: 0;
+  background: #f7f8fb;
+  border-bottom: 1px solid #eef1f6;
 }
 
 /* ── Board ────────────────────────────────────────────────────────── */

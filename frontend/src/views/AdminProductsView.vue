@@ -61,6 +61,28 @@ function onCategoryPicked(): void {
   }
 }
 
+// ── Split unit pricing (material + fee) ──────────────────────────────
+// Some categories (e.g. Hardver) price their unit as material + fee; the
+// plain unit price field is then replaced by the two parts and a computed
+// SUM. Driven by the category's splitUnitPrice flag.
+function categoryIsSplit(categoryId: number | null): boolean {
+  return categories.value.find((c) => c.id === categoryId)?.splitUnitPrice ?? false
+}
+
+const selectedCategorySplit = computed(() => categoryIsSplit(form.categoryId))
+
+function toNumber(value: string | null): number {
+  if (!value) return 0
+  const n = Number(String(value).replace(',', '.').replace(/\s/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+// Live SUM preview; null when neither part is filled.
+const formSumPrice = computed<string | null>(() => {
+  if (!form.materialUnitPrice && !form.feeUnitPrice) return null
+  return (toNumber(form.materialUnitPrice) + toNumber(form.feeUnitPrice)).toFixed(2)
+})
+
 const categoryFilterOptions = computed<{ value: number | null; label: string }[]>(() => [
   { value: null, label: t('adminProducts.allCategories') },
   ...categories.value.map((c) => ({ value: c.id, label: c.name })),
@@ -142,6 +164,8 @@ function openEdit(p: Product): void {
   form.subcategoryId = p.subcategoryId
   form.description = p.description
   form.unitPrice = p.unitPrice
+  form.materialUnitPrice = p.materialUnitPrice
+  form.feeUnitPrice = p.feeUnitPrice
   form.currency = p.currency
   form.isActive = p.isActive
   form.validFrom = p.validFrom
@@ -165,7 +189,13 @@ async function onSubmit(): Promise<void> {
     return
   }
   saving.value = true
-  const payload: ProductFields = { ...form, unitPrice: '' === form.unitPrice ? null : form.unitPrice }
+  const blank = (v: string | null): string | null => ('' === v ? null : v)
+  const payload: ProductFields = {
+    ...form,
+    unitPrice: blank(form.unitPrice),
+    materialUnitPrice: blank(form.materialUnitPrice),
+    feeUnitPrice: blank(form.feeUnitPrice),
+  }
   const result =
     null === editingId.value
       ? await store.createProduct(payload)
@@ -195,6 +225,8 @@ async function saveInlinePrice(p: Product, event: Event): Promise<void> {
     subcategoryId: p.subcategoryId,
     description: p.description,
     unitPrice: newPrice,
+    materialUnitPrice: p.materialUnitPrice,
+    feeUnitPrice: p.feeUnitPrice,
     currency: p.currency,
     isActive: p.isActive,
     validFrom: p.validFrom,
@@ -269,7 +301,23 @@ function validityLabel(p: Product): string {
               :disabled="null === form.categoryId"
             />
           </label>
-          <label class="field">
+          <template v-if="selectedCategorySplit">
+            <label class="field">
+              <span>{{ t('adminProducts.materialUnitPrice') }}</span>
+              <input v-model="form.materialUnitPrice" type="text" inputmode="decimal" />
+            </label>
+            <label class="field">
+              <span>{{ t('adminProducts.feeUnitPrice') }}</span>
+              <input v-model="form.feeUnitPrice" type="text" inputmode="decimal" />
+            </label>
+            <div class="field">
+              <span>{{ t('adminProducts.sumUnitPrice') }}</span>
+              <div class="sum-value">
+                {{ formSumPrice ?? '—' }} <span class="sum-cur">{{ form.currency }}</span>
+              </div>
+            </div>
+          </template>
+          <label v-else class="field">
             <span>{{ t('adminProducts.unitPrice') }}</span>
             <input v-model="form.unitPrice" type="text" inputmode="decimal" />
           </label>
@@ -363,7 +411,14 @@ function validityLabel(p: Product): string {
                   <template v-else>—</template>
                 </td>
                 <td class="col-price">
-                  <span class="price-edit">
+                  <span v-if="categoryIsSplit(p.categoryId)" class="price-split" :title="t('adminProducts.sumUnitPrice')">
+                    <span class="price-sum">{{ p.unitPrice ?? '—' }} <span class="price-cur">{{ p.currency }}</span></span>
+                    <span class="price-parts">
+                      {{ t('adminProducts.materialShort') }}: {{ p.materialUnitPrice ?? '0' }}
+                      · {{ t('adminProducts.feeShort') }}: {{ p.feeUnitPrice ?? '0' }}
+                    </span>
+                  </span>
+                  <span v-else class="price-edit">
                     <input
                       type="text"
                       inputmode="decimal"
@@ -886,6 +941,47 @@ function validityLabel(p: Product): string {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+/* Read-only SUM (= material + fee) for split-pricing products; the parts
+   are edited in the form, not inline. */
+.price-split {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  white-space: nowrap;
+}
+
+.price-sum {
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.price-parts {
+  color: #8b94a6;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+/* Computed SUM shown in the product form (read-only). */
+.sum-value {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.7rem;
+  background: #eef1f6;
+  border: 1px solid #d4dae6;
+  border-radius: 0.5rem;
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.sum-cur {
+  color: #8b94a6;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .price-input {

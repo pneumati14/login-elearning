@@ -65,35 +65,24 @@ const menuItems = computed<MenuItem[]>(() => {
   ]
 
   // The CRM submenu is shown to anyone with CRM access (salesperson,
-  // sales manager or admin). Customers and tasks are open to all of them;
-  // the catalogue config (opportunity types, products) is admins only.
-  // Salespeople and sales managers see no other admin menu.
+  // sales manager or admin). The catalogue config (opportunity types,
+  // products, …) is admins only and lives under Admin ▸ CRM-admin, not here.
   if (auth.hasCrmAccess) {
     const crmItems: MenuItem[] = [
       { label: t('nav.adminCustomers'), icon: 'team-career.svg', type: 'route', to: '/admin/customers' },
+      { label: t('nav.adminNotes'), icon: 'publications.svg', type: 'route', to: '/admin/notes' },
       { label: t('nav.adminTasks'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/tasks' },
       { label: t('nav.adminReports'), icon: 'download-research.svg', type: 'route', to: '/admin/reports' },
       { label: t('nav.adminTimeline'), icon: 'workhour.svg', type: 'route', to: '/admin/timeline' },
       { label: t('nav.adminFulfillment'), icon: 'application.svg', type: 'route', to: '/admin/fulfillment' },
       { label: t('nav.adminBilling'), icon: 'productivity.svg', type: 'route', to: '/admin/billing' },
     ]
-    if (auth.canManageCatalog) {
-      crmItems.push(
-        { label: t('nav.adminOpportunityTypes'), icon: 'competency.svg', type: 'route', to: '/admin/opportunity-types' },
-        { label: t('nav.adminProducts'), icon: 'publications.svg', type: 'route', to: '/admin/products' },
-        { label: t('nav.adminProductCategories'), icon: 'competency.svg', type: 'route', to: '/admin/product-categories' },
-        { label: t('nav.adminSuppliers'), icon: 'connect.svg', type: 'route', to: '/admin/suppliers' },
-        { label: t('nav.adminFeeTitles'), icon: 'productivity.svg', type: 'route', to: '/admin/fee-titles' },
-        { label: t('nav.adminIntegrations'), icon: 'cplatform.svg', type: 'route', to: '/admin/integrations' },
-        { label: t('nav.adminCurrencies'), icon: 'workhour.svg', type: 'route', to: '/admin/currencies' },
-        { label: t('nav.adminFulfillmentTypes'), icon: 'icon-app.svg', type: 'route', to: '/admin/fulfillment-types' },
-      )
-    }
     items.push({ label: t('nav.crm'), icon: 'team-career.svg', type: 'submenu', key: 'crm', children: crmItems })
   }
 
   // The Admin submenu (non-CRM administration) is only built — and only
-  // shown — for administrators.
+  // shown — for administrators. The catalogue config sits in a nested
+  // "CRM-admin" submenu within it (second-level accordion).
   if (auth.isAdmin) {
     items.push({
       label: t('nav.admin'),
@@ -105,6 +94,22 @@ const menuItems = computed<MenuItem[]>(() => {
         { label: t('nav.adminUsers'), icon: 'team-career.svg', type: 'route', to: '/admin/users' },
         { label: t('nav.adminPublications'), icon: 'publications.svg', type: 'route', to: '/admin/publications' },
         { label: t('nav.adminPositions'), icon: 'book-a-demo.svg', type: 'route', to: '/admin/positions' },
+        {
+          label: t('nav.crmAdmin'),
+          icon: 'productivity.svg',
+          type: 'submenu',
+          key: 'crm-admin',
+          children: [
+            { label: t('nav.adminOpportunityTypes'), icon: 'competency.svg', type: 'route', to: '/admin/opportunity-types' },
+            { label: t('nav.adminProducts'), icon: 'publications.svg', type: 'route', to: '/admin/products' },
+            { label: t('nav.adminProductCategories'), icon: 'competency.svg', type: 'route', to: '/admin/product-categories' },
+            { label: t('nav.adminSuppliers'), icon: 'connect.svg', type: 'route', to: '/admin/suppliers' },
+            { label: t('nav.adminFeeTitles'), icon: 'productivity.svg', type: 'route', to: '/admin/fee-titles' },
+            { label: t('nav.adminIntegrations'), icon: 'cplatform.svg', type: 'route', to: '/admin/integrations' },
+            { label: t('nav.adminCurrencies'), icon: 'workhour.svg', type: 'route', to: '/admin/currencies' },
+            { label: t('nav.adminFulfillmentTypes'), icon: 'icon-app.svg', type: 'route', to: '/admin/fulfillment-types' },
+          ],
+        },
       ],
     })
   }
@@ -116,6 +121,8 @@ const menuItems = computed<MenuItem[]>(() => {
 const menuOpen = ref(false)
 // Key of the submenu currently expanded in place (accordion: one at a time).
 const expandedKey = ref<string | null>(null)
+// Key of the nested second-level submenu (e.g. Admin ▸ CRM-admin).
+const expandedSubKey = ref<string | null>(null)
 const root = ref<HTMLElement | null>(null)
 
 // ── High Sensitivity Solutions dropdown ───────────────────────────
@@ -145,6 +152,7 @@ function toggleMenu() {
   menuOpen.value = !menuOpen.value
   if (menuOpen.value) {
     expandedKey.value = null
+    expandedSubKey.value = null
     profileOpen.value = false
     hssOpen.value = false
   }
@@ -154,6 +162,11 @@ function closeMenu() {
 }
 function toggleSubmenu(key: string) {
   expandedKey.value = expandedKey.value === key ? null : key
+  // Collapsing or switching the top-level submenu resets the nested one.
+  expandedSubKey.value = null
+}
+function toggleSubSubmenu(key: string) {
+  expandedSubKey.value = expandedSubKey.value === key ? null : key
 }
 function toggleProfile() {
   profileOpen.value = !profileOpen.value
@@ -239,8 +252,38 @@ const iconUrl = (name: string) => `/frontend-files/images/menu-images/${name}`
 
                     <div v-if="expandedKey === item.key" class="submenu">
                       <template v-for="(child, j) in item.children" :key="j">
+                        <!-- Nested submenu (second level), e.g. CRM-admin. -->
+                        <template v-if="child.type === 'submenu'">
+                          <span
+                            class="dropdown-item has-sub"
+                            :class="{ expanded: expandedSubKey === child.key }"
+                            role="button"
+                            :aria-expanded="expandedSubKey === child.key"
+                            @click="toggleSubSubmenu(child.key!)"
+                          >
+                            <span class="icon"><img :src="iconUrl(child.icon)" class="img-fluid" alt="" /></span>
+                            {{ child.label }}
+                            <svg class="icon-right" viewBox="0 0 16 16">
+                              <use xlink:href="/frontend-files/images/icons.svg#caret-circle-right"></use>
+                            </svg>
+                          </span>
+
+                          <div v-if="expandedSubKey === child.key" class="submenu">
+                            <RouterLink
+                              v-for="(grandchild, k) in child.children"
+                              :key="k"
+                              class="dropdown-item"
+                              :to="grandchild.to!"
+                              @click="closeMenu"
+                            >
+                              <span class="icon"><img :src="iconUrl(grandchild.icon)" class="img-fluid" alt="" /></span>
+                              {{ grandchild.label }}
+                            </RouterLink>
+                          </div>
+                        </template>
+
                         <RouterLink
-                          v-if="child.type === 'route'"
+                          v-else-if="child.type === 'route'"
                           class="dropdown-item"
                           :to="child.to!"
                           @click="closeMenu"

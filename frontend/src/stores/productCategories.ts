@@ -14,6 +14,8 @@ export interface ProductCategory {
   id: number
   name: string
   position: number
+  /** When true, products price their unit as material + fee (e.g. Hardver). */
+  splitUnitPrice: boolean
   subcategories: ProductSubcategory[]
 }
 
@@ -82,12 +84,12 @@ export const useProductCategoriesStore = defineStore('productCategories', () => 
     }
   }
 
-  function createCategory(name: string): Promise<MutationResult> {
-    return mutate('', 'POST', { name }, 'A kategória létrehozása nem sikerült.')
+  function createCategory(name: string, splitUnitPrice = false): Promise<MutationResult> {
+    return mutate('', 'POST', { name, splitUnitPrice }, 'A kategória létrehozása nem sikerült.')
   }
 
-  function updateCategory(id: number, name: string): Promise<MutationResult> {
-    return mutate(`/${id}`, 'PUT', { name }, 'A mentés nem sikerült.')
+  function updateCategory(id: number, name: string, splitUnitPrice: boolean): Promise<MutationResult> {
+    return mutate(`/${id}`, 'PUT', { name, splitUnitPrice }, 'A mentés nem sikerült.')
   }
 
   function deleteCategory(id: number): Promise<MutationResult> {

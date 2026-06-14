@@ -2,14 +2,19 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { useBillingStore, type BillingItem, type BillingItemFields } from '@/stores/billing'
+import { useBillingStore, type BillingItem, type BillingItemFields, type BillingStatus } from '@/stores/billing'
 import { useCustomersStore } from '@/stores/customers'
+import { useOpportunitiesStore, type Opportunity } from '@/stores/opportunities'
+import { useProductsStore } from '@/stores/products'
 import { useMoneyFormat } from '@/stores/currencySettings'
 import AppSelect from '@/components/AppSelect.vue'
+import OpportunityLineItems from '@/components/OpportunityLineItems.vue'
 
 const { t, locale } = useI18n()
 const store = useBillingStore()
 const customersStore = useCustomersStore()
+const opportunitiesStore = useOpportunitiesStore()
+const productsStore = useProductsStore()
 const { items, loading, error } = storeToRefs(store)
 const { customers } = storeToRefs(customersStore)
 
@@ -36,9 +41,67 @@ const filter = ref<Filter>('pending')
 
 const pendingCount = computed(() => items.value.filter((i) => 'pending' === i.status).length)
 
-const visibleItems = computed(() =>
-  'all' === filter.value ? items.value : items.value.filter((i) => i.status === filter.value),
-)
+// ── Grouping by offer ────────────────────────────────────────────────
+// Billing rows snapshotted from the same won deal share an opportunityId;
+// they are shown as one summary "big item" with the line items nested under
+// it. Manual rows (and card-sourced ones) carry no opportunity, so each
+// stands alone as a single flat row.
+type GroupStatus = 'pending' | 'invoiced' | 'partial'
+
+interface BillingGroup {
+  key: string
+  opportunityId: number | null
+  customerId: number
+  customerName: string
+  source: string
+  currency: string
+  items: BillingItem[]
+  total: number
+  wonAt: string | null
+  status: GroupStatus
+  isSingle: boolean
+}
+
+const groups = computed<BillingGroup[]>(() => {
+  const map = new Map<string, BillingItem[]>()
+  for (const item of items.value) {
+    const key = null !== item.opportunityId ? `opp-${item.opportunityId}` : `item-${item.id}`
+    const bucket = map.get(key)
+    if (bucket) bucket.push(item)
+    else map.set(key, [item])
+  }
+
+  const result: BillingGroup[] = []
+  for (const [key, groupItems] of map) {
+    const first = groupItems[0]!
+    const allInvoiced = groupItems.every((i) => 'invoiced' === i.status)
+    const anyInvoiced = groupItems.some((i) => 'invoiced' === i.status)
+    result.push({
+      key,
+      opportunityId: first.opportunityId,
+      customerId: first.customerId,
+      customerName: first.customerName,
+      source: first.opportunityTitle ?? first.cardName ?? '—',
+      currency: first.currency,
+      items: groupItems,
+      total: groupItems.reduce((sum, i) => sum + Number(i.lineTotal), 0),
+      wonAt: first.wonAt,
+      status: allInvoiced ? 'invoiced' : anyInvoiced ? 'partial' : 'pending',
+      isSingle: 1 === groupItems.length,
+    })
+  }
+  return result
+})
+
+// The status filter selects whole offers: 'pending' keeps any offer that
+// still has an uninvoiced line (pending or partial); 'invoiced' keeps only
+// fully-invoiced offers. Visible offers always show all their line items so
+// the summary total matches the rows beneath it.
+const visibleGroups = computed(() => {
+  if ('all' === filter.value) return groups.value
+  if ('pending' === filter.value) return groups.value.filter((g) => 'invoiced' !== g.status)
+  return groups.value.filter((g) => 'invoiced' === g.status)
+})
 
 // Per-currency totals of everything still waiting to be invoiced.
 const pendingTotals = computed(() => {
@@ -49,6 +112,32 @@ const pendingTotals = computed(() => {
   }
   return [...sums.entries()].map(([currency, total]) => ({ currency, total }))
 })
+
+// ── Offer detail expansion ────────────────────────────────────────────
+// An offer tied to an opportunity can be expanded to show its full original
+// quote lines (read-only, with category + material/fee), pulled from the
+// opportunity — independent of the billing snapshot rows shown above it.
+const expandedOffers = reactive(new Set<string>())
+
+function toggleOffer(group: BillingGroup): void {
+  if (expandedOffers.has(group.key)) {
+    expandedOffers.delete(group.key)
+    return
+  }
+  expandedOffers.add(group.key)
+  if (null === group.opportunityId) return
+  // Lazily load what the breakdown needs the first time an offer is opened.
+  if (0 === productsStore.products.length) void productsStore.fetchProducts()
+  if (0 === opportunitiesStore.list(group.customerId).length) {
+    void opportunitiesStore.fetchOpportunities(group.customerId)
+  }
+}
+
+/** The opportunity behind an offer group, once its customer's deals load. */
+function offerOpportunity(group: BillingGroup): Opportunity | null {
+  if (null === group.opportunityId) return null
+  return opportunitiesStore.list(group.customerId).find((o) => o.id === group.opportunityId) ?? null
+}
 
 // ── Formatting ───────────────────────────────────────────────────────
 const fmtMoney = useMoneyFormat()
@@ -124,6 +213,17 @@ async function saveEdit(): Promise<void> {
 async function onToggleStatus(item: BillingItem): Promise<void> {
   const result = await store.setStatus(item.id, 'pending' === item.status ? 'invoiced' : 'pending')
   if (!result.ok) window.alert(result.error ?? t('admin.saveFailed'))
+}
+
+// Flip every line of an offer at once. Fully-invoiced offers reopen; any
+// other state (pending or partial) is pushed to fully invoiced.
+async function onMarkGroup(group: BillingGroup): Promise<void> {
+  const target: BillingStatus = 'invoiced' === group.status ? 'pending' : 'invoiced'
+  const results = await Promise.all(
+    group.items.filter((i) => i.status !== target).map((i) => store.setStatus(i.id, target)),
+  )
+  const failed = results.find((r) => !r.ok)
+  if (failed) window.alert(failed.error ?? t('admin.saveFailed'))
 }
 
 async function onDelete(item: BillingItem): Promise<void> {
@@ -208,9 +308,9 @@ async function onDelete(item: BillingItem): Promise<void> {
           </button>
         </form>
 
-        <!-- ── Itemised table ───────────────────────────────────────── -->
+        <!-- ── Itemised table, grouped per offer ────────────────────── -->
         <div class="bill-panel">
-          <p v-if="visibleItems.length === 0" class="muted">{{ t('adminBilling.empty') }}</p>
+          <p v-if="visibleGroups.length === 0" class="muted">{{ t('adminBilling.empty') }}</p>
           <div v-else class="bill-table-wrap">
             <table class="bill-table">
               <thead>
@@ -226,17 +326,74 @@ async function onDelete(item: BillingItem): Promise<void> {
                   <th class="actions">{{ t('adminBilling.colActions') }}</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr v-for="item in visibleItems" :key="item.id" :class="{ 'is-invoiced': item.status === 'invoiced' }">
+              <tbody v-for="group in visibleGroups" :key="group.key" class="bill-group">
+                <!-- Summary "big item" header — multi-line offers only. -->
+                <tr v-if="!group.isSingle" class="bill-offer-row">
                   <td>
+                    <button
+                      v-if="group.opportunityId !== null"
+                      type="button"
+                      class="offer-toggle"
+                      :class="{ 'is-open': expandedOffers.has(group.key) }"
+                      :aria-expanded="expandedOffers.has(group.key)"
+                      :aria-label="t('adminBilling.colItem')"
+                      :title="t('adminBilling.colItem')"
+                      @click="toggleOffer(group)"
+                    >▸</button>
                     <RouterLink
-                      :to="{ name: 'admin-customer-detail', params: { id: item.customerId } }"
+                      :to="{ name: 'admin-customer-detail', params: { id: group.customerId } }"
                       class="bill-customer"
                     >
-                      {{ item.customerName }}
+                      {{ group.customerName }}
                     </RouterLink>
                   </td>
-                  <td class="bill-deal">{{ item.opportunityTitle ?? item.cardName ?? '—' }}</td>
+                  <td class="bill-deal">{{ group.source }}</td>
+                  <td class="bill-name">{{ t('adminBilling.offerItemCount', { count: group.items.length }) }}</td>
+                  <td class="num"></td>
+                  <td class="num"></td>
+                  <td class="num bill-line-total">{{ fmtMoney(group.total, group.currency) }}</td>
+                  <td>{{ fmtDate(group.wonAt) }}</td>
+                  <td>
+                    <span class="bill-status" :class="`bill-status--${group.status}`">
+                      {{ t(`adminBilling.status_${group.status}`) }}
+                    </span>
+                  </td>
+                  <td class="actions">
+                    <button type="button" class="row-btn row-btn--primary" @click="onMarkGroup(group)">
+                      {{ group.status === 'invoiced' ? t('adminBilling.markAllPending') : t('adminBilling.markAllInvoiced') }}
+                    </button>
+                  </td>
+                </tr>
+
+                <!-- Line items: full row when standalone, nested sub-row otherwise. -->
+                <tr
+                  v-for="item in group.items"
+                  :key="item.id"
+                  :class="{ 'is-invoiced': item.status === 'invoiced', 'bill-subrow': !group.isSingle }"
+                >
+                  <td>
+                    <template v-if="group.isSingle">
+                      <button
+                        v-if="group.opportunityId !== null"
+                        type="button"
+                        class="offer-toggle"
+                        :class="{ 'is-open': expandedOffers.has(group.key) }"
+                        :aria-expanded="expandedOffers.has(group.key)"
+                        :aria-label="t('adminBilling.colItem')"
+                        :title="t('adminBilling.colItem')"
+                        @click="toggleOffer(group)"
+                      >▸</button>
+                      <RouterLink
+                        :to="{ name: 'admin-customer-detail', params: { id: item.customerId } }"
+                        class="bill-customer"
+                      >
+                        {{ item.customerName }}
+                      </RouterLink>
+                    </template>
+                  </td>
+                  <td class="bill-deal">
+                    <template v-if="group.isSingle">{{ item.opportunityTitle ?? item.cardName ?? '—' }}</template>
+                  </td>
 
                   <template v-if="editId === item.id">
                     <td><input v-model="editFields.name" type="text" class="bill-edit-input" /></td>
@@ -245,13 +402,13 @@ async function onDelete(item: BillingItem): Promise<void> {
                     <td class="num">{{ fmtMoney(Number(editFields.quantity || 0) * Number(editFields.unitPrice || 0), editFields.currency) }}</td>
                   </template>
                   <template v-else>
-                    <td class="bill-name">{{ item.name }}</td>
+                    <td class="bill-name" :class="{ 'bill-name--sub': !group.isSingle }">{{ item.name }}</td>
                     <td class="num">{{ fmtNumber(item.quantity) }}</td>
                     <td class="num">{{ fmtMoney(item.unitPrice, item.currency) }}</td>
                     <td class="num bill-line-total">{{ fmtMoney(item.lineTotal, item.currency) }}</td>
                   </template>
 
-                  <td>{{ fmtDate(item.wonAt) }}</td>
+                  <td>{{ group.isSingle ? fmtDate(item.wonAt) : '' }}</td>
                   <td>
                     <span class="bill-status" :class="`bill-status--${item.status}`">
                       {{ t(`adminBilling.status_${item.status}`) }}
@@ -270,6 +427,21 @@ async function onDelete(item: BillingItem): Promise<void> {
                       <button type="button" class="row-btn" @click="startEdit(item)">{{ t('admin.edit') }}</button>
                       <button type="button" class="row-btn row-btn--danger" @click="onDelete(item)">{{ t('admin.delete') }}</button>
                     </template>
+                  </td>
+                </tr>
+
+                <!-- ── Full original quote lines of the offer (expanded) ── -->
+                <tr v-if="expandedOffers.has(group.key)" class="bill-offer-detail">
+                  <td :colspan="9">
+                    <OpportunityLineItems
+                      v-if="offerOpportunity(group) && offerOpportunity(group)!.lineItems.length"
+                      :line-items="offerOpportunity(group)!.lineItems"
+                      :currency="offerOpportunity(group)!.currency"
+                      :total="offerOpportunity(group)!.lineItemsTotal"
+                    />
+                    <p v-else class="muted bill-offer-detail-msg">
+                      {{ offerOpportunity(group) ? t('adminBilling.offerItemsNone') : t('adminBilling.offerItemsLoading') }}
+                    </p>
                   </td>
                 </tr>
               </tbody>
@@ -494,6 +666,66 @@ async function onDelete(item: BillingItem): Promise<void> {
   color: #8b94a6;
 }
 
+/* ── Offer grouping ─────────────────────────────────────────────────── */
+/* Each offer is its own tbody; a rule separates one offer from the next. */
+.bill-group + .bill-group {
+  border-top: 8px solid #f2f4f8;
+}
+
+.bill-offer-row td {
+  background: #f7f8fb;
+  border-bottom: 1px solid #e3e7ef;
+  font-weight: 700;
+}
+
+/* Caret that expands an offer's full original quote lines. */
+.offer-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-right: 0.3rem;
+  padding: 0;
+  background: none;
+  border: none;
+  color: #8b94a6;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: transform 0.15s, color 0.15s;
+}
+
+.offer-toggle:hover {
+  color: var(--login-primary, #ed2044);
+}
+
+.offer-toggle.is-open {
+  transform: rotate(90deg);
+  color: var(--login-secondary, #0c1c40);
+}
+
+.bill-offer-detail > td {
+  padding: 0;
+  background: #fbfcfe;
+  border-bottom: 1px solid #e3e7ef;
+}
+
+.bill-offer-detail-msg {
+  padding: 0.8rem 1rem;
+}
+
+/* Line items nested under a summary row: lighter, indented name. */
+.bill-subrow td {
+  background: #fff;
+}
+
+.bill-name--sub {
+  padding-left: 1.6rem;
+  font-weight: 500;
+}
+
 .bill-table .num {
   text-align: right;
   white-space: nowrap;
@@ -544,6 +776,11 @@ async function onDelete(item: BillingItem): Promise<void> {
 .bill-status--invoiced {
   background: #e3f6ec;
   color: #1c7a45;
+}
+
+.bill-status--partial {
+  background: #e7effc;
+  color: #2563ad;
 }
 
 .bill-invoiced-at {

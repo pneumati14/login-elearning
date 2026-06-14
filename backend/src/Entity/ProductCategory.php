@@ -30,6 +30,14 @@ class ProductCategory
     private int $position = 0;
 
     /**
+     * When true, products in this category price their unit as a sum of a
+     * material part and a fee/labour part (e.g. Hardver); the plain unit
+     * price field is hidden and computed as material + fee.
+     */
+    #[ORM\Column]
+    private bool $splitUnitPrice = false;
+
+    /**
      * Ordered sub-categories.
      *
      * @var Collection<int, ProductSubcategory>
@@ -77,6 +85,18 @@ class ProductCategory
     public function setPosition(int $position): static
     {
         $this->position = $position;
+
+        return $this;
+    }
+
+    public function isSplitUnitPrice(): bool
+    {
+        return $this->splitUnitPrice;
+    }
+
+    public function setSplitUnitPrice(bool $splitUnitPrice): static
+    {
+        $this->splitUnitPrice = $splitUnitPrice;
 
         return $this;
     }

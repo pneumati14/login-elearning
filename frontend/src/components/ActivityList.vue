@@ -15,6 +15,8 @@ import {
 } from '@/stores/activities'
 import { useOpportunitiesStore } from '@/stores/opportunities'
 import AppSelect from '@/components/AppSelect.vue'
+import RichTextEditor from '@/components/RichTextEditor.vue'
+import RichTextContent from '@/components/RichTextContent.vue'
 import IconEdit from '@/components/icons/IconEdit.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 
@@ -193,7 +195,8 @@ function contactName(a: Activity): string {
         </label>
         <label class="field field--wide">
           <span>{{ t('adminCustomers.notes') }}</span>
-          <textarea v-model="form.body" rows="2" />
+          <RichTextEditor v-if="'note' === form.type" v-model="form.body" class="act-rte" />
+          <textarea v-else v-model="form.body" rows="2" />
         </label>
       </div>
 
@@ -244,7 +247,8 @@ function contactName(a: Activity): string {
             <span v-if="a.opportunityTitle && null === fixedOpportunityId" class="tl-chip tl-chip--opp">{{ a.opportunityTitle }}</span>
             <span v-if="a.createdByName" class="tl-by">· {{ a.createdByName }}</span>
           </div>
-          <p v-if="a.body" class="tl-text">{{ a.body }}</p>
+          <RichTextContent v-if="a.body && 'note' === a.type" :html="a.body" class="tl-text" />
+          <p v-else-if="a.body" class="tl-text">{{ a.body }}</p>
         </div>
         <div class="tl-actions">
           <button type="button" class="btn-icon" :title="t('admin.edit')" :aria-label="t('admin.edit')" @click="openEdit(a)">
@@ -336,6 +340,13 @@ function contactName(a: Activity): string {
   outline: 2px solid var(--login-primary, #ed2044);
   outline-offset: -1px;
   background: #fff;
+}
+
+.act-rte {
+  padding: 0.55rem 0.7rem;
+  background: #fff;
+  border: 1px solid #d4dae6;
+  border-radius: 0.5rem;
 }
 
 .form-actions {

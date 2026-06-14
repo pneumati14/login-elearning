@@ -392,8 +392,23 @@ final class AdminCustomerOpportunityController extends AbstractController
             $item->setProduct($product)
                 ->setProductName($name)
                 ->setQuantity($this->parseDecimal($raw['quantity'] ?? null) ?? '1')
-                ->setUnitPrice($this->parseDecimal($raw['unitPrice'] ?? null) ?? '0')
                 ->setPosition($position++);
+
+            // Hardware (split-pricing category) lines store the material +
+            // fee parts and derive the unit price from them; plain lines
+            // keep the directly entered unit price.
+            if (null !== $product && true === $product->getCategory()?->isSplitUnitPrice()) {
+                $material = $this->parseDecimal($raw['materialUnitPrice'] ?? null) ?? '0';
+                $fee = $this->parseDecimal($raw['feeUnitPrice'] ?? null) ?? '0';
+                $item->setMaterialUnitPrice($material)
+                    ->setFeeUnitPrice($fee)
+                    ->setUnitPrice(number_format((float) $material + (float) $fee, 2, '.', ''));
+            } else {
+                $item->setMaterialUnitPrice(null)
+                    ->setFeeUnitPrice(null)
+                    ->setUnitPrice($this->parseDecimal($raw['unitPrice'] ?? null) ?? '0');
+            }
+
             $o->addLineItem($item);
         }
 
@@ -651,6 +666,8 @@ final class AdminCustomerOpportunityController extends AbstractController
                     'productName' => $li->getProductName(),
                     'quantity' => $li->getQuantity(),
                     'unitPrice' => $li->getUnitPrice(),
+                    'materialUnitPrice' => $li->getMaterialUnitPrice(),
+                    'feeUnitPrice' => $li->getFeeUnitPrice(),
                     'lineTotal' => $li->getLineTotal(),
                 ],
                 $o->getLineItems()->toArray(),
