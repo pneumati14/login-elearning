@@ -26,10 +26,18 @@ export interface LineItem {
   materialUnitPrice: string | null
   feeUnitPrice: string | null
   lineTotal: string
+  /** Per-line billing state, set from the billing menu. */
+  invoiced: boolean
+  invoicedAt: string | null
 }
 
-/** A line item as edited in the form (no id/total — computed on save). */
+/**
+ * A line item as edited in the form. The id of an existing line is carried
+ * through so the backend can preserve its invoiced state across the rebuild;
+ * it is null for a freshly added line.
+ */
 export interface LineItemFields {
+  id: number | null
   productId: number | null
   productName: string
   quantity: string
@@ -210,6 +218,59 @@ export const useOpportunitiesStore = defineStore('opportunities', () => {
     }
   }
 
+  /** Flip one quote line's invoiced state (billing menu, per-line). */
+  async function setLineInvoiced(
+    customerId: number,
+    opportunityId: number,
+    lineId: number,
+    invoiced: boolean,
+  ): Promise<MutationResult> {
+    try {
+      const response = await fetch(
+        `${API_URL}/admin/customers/${customerId}/opportunities/${opportunityId}/line-items/${lineId}/invoiced`,
+        {
+          method: 'PUT',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ invoiced }),
+        },
+      )
+      if (!response.ok) {
+        return { ok: false, error: await readError(response, 'A státusz módosítása nem sikerült.') }
+      }
+      upsert(customerId, (await response.json()) as Opportunity)
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
+  /** Flip every quote line of an offer at once. */
+  async function setAllLinesInvoiced(
+    customerId: number,
+    opportunityId: number,
+    invoiced: boolean,
+  ): Promise<MutationResult> {
+    try {
+      const response = await fetch(
+        `${API_URL}/admin/customers/${customerId}/opportunities/${opportunityId}/line-items/invoiced`,
+        {
+          method: 'PUT',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ invoiced }),
+        },
+      )
+      if (!response.ok) {
+        return { ok: false, error: await readError(response, 'A státusz módosítása nem sikerült.') }
+      }
+      upsert(customerId, (await response.json()) as Opportunity)
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Nem sikerült elérni a szervert.' }
+    }
+  }
+
   async function updateOpportunity(
     customerId: number,
     id: number,
@@ -317,6 +378,8 @@ export const useOpportunitiesStore = defineStore('opportunities', () => {
     createOpportunity,
     updateOpportunity,
     moveStage,
+    setLineInvoiced,
+    setAllLinesInvoiced,
     deleteOpportunity,
     uploadDocument,
     deleteDocument,

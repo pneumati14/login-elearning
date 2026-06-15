@@ -177,6 +177,59 @@ final class AdminCustomerOpportunityController extends AbstractController
         return $this->json($this->serialize($opportunity));
     }
 
+    /**
+     * Flip a single quote line's invoiced state (billing menu, per-line).
+     * Body: { "invoiced": true|false }.
+     */
+    #[Route('/{id<\d+>}/line-items/{lineId<\d+>}/invoiced', name: 'line_item_invoiced', methods: ['PUT'])]
+    public function setLineInvoiced(int $customerId, int $id, int $lineId, Request $request): JsonResponse
+    {
+        $opportunity = $this->findOpportunity($customerId, $id);
+        if (null === $opportunity) {
+            return $this->json(['error' => 'A lehetőség nem található.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $line = null;
+        foreach ($opportunity->getLineItems() as $candidate) {
+            if ($candidate->getId() === $lineId) {
+                $line = $candidate;
+                break;
+            }
+        }
+        if (null === $line) {
+            return $this->json(['error' => 'A tételsor nem található.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $payload = $this->decode($request);
+        $line->setInvoiced((bool) ($payload['invoiced'] ?? false));
+        $this->entityManager->flush();
+
+        return $this->json($this->serialize($opportunity));
+    }
+
+    /**
+     * Flip every quote line of the offer at once (the "invoice all" button).
+     * Body: { "invoiced": true|false }.
+     */
+    #[Route('/{id<\d+>}/line-items/invoiced', name: 'line_items_invoiced_all', methods: ['PUT'])]
+    public function setAllLinesInvoiced(int $customerId, int $id, Request $request): JsonResponse
+    {
+        $opportunity = $this->findOpportunity($customerId, $id);
+        if (null === $opportunity) {
+            return $this->json(['error' => 'A lehetőség nem található.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $payload = $this->decode($request);
+        $invoiced = (bool) ($payload['invoiced'] ?? false);
+        $at = new \DateTimeImmutable();
+        foreach ($opportunity->getLineItems() as $line) {
+            $line->setInvoiced($invoiced, $at);
+        }
+        $this->entityManager->flush();
+
+        return $this->json($this->serialize($opportunity));
+    }
+
     #[Route('/{id<\d+>}', name: 'delete', methods: ['DELETE'])]
     public function delete(int $customerId, int $id): JsonResponse
     {
@@ -364,6 +417,16 @@ final class AdminCustomerOpportunityController extends AbstractController
             return 'Érvénytelen tételsorok.';
         }
 
+        // Preserve per-line invoiced state across a quote edit: the lines are
+        // rebuilt from scratch, so capture the flag by id and re-apply it to
+        // each line the client still sends carrying that id.
+        $invoicedById = [];
+        foreach ($o->getLineItems() as $existing) {
+            if (null !== $existing->getId()) {
+                $invoicedById[$existing->getId()] = [$existing->isInvoiced(), $existing->getInvoicedAt()];
+            }
+        }
+
         $o->clearLineItems();
         $position = 0;
         foreach ($items as $raw) {
@@ -407,6 +470,12 @@ final class AdminCustomerOpportunityController extends AbstractController
                 $item->setMaterialUnitPrice(null)
                     ->setFeeUnitPrice(null)
                     ->setUnitPrice($this->parseDecimal($raw['unitPrice'] ?? null) ?? '0');
+            }
+
+            $rawId = $raw['id'] ?? null;
+            if (null !== $rawId && isset($invoicedById[(int) $rawId])) {
+                [$wasInvoiced, $at] = $invoicedById[(int) $rawId];
+                $item->setInvoiced($wasInvoiced, $at);
             }
 
             $o->addLineItem($item);
@@ -669,6 +738,8 @@ final class AdminCustomerOpportunityController extends AbstractController
                     'materialUnitPrice' => $li->getMaterialUnitPrice(),
                     'feeUnitPrice' => $li->getFeeUnitPrice(),
                     'lineTotal' => $li->getLineTotal(),
+                    'invoiced' => $li->isInvoiced(),
+                    'invoicedAt' => $li->getInvoicedAt()?->format('Y-m-d'),
                 ],
                 $o->getLineItems()->toArray(),
             ),

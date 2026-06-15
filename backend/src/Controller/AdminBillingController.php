@@ -160,6 +160,25 @@ final class AdminBillingController extends AbstractController
      */
     private function serialize(BillingItem $b): array
     {
+        // Per-offer invoicing aggregate from the opportunity's quote lines:
+        // the billing menu derives the offer's invoiced %/amount from these.
+        $offerTotal = 0.0;
+        $offerInvoiced = 0.0;
+        $offerLineCount = 0;
+        $offerInvoicedCount = 0;
+        $opportunity = $b->getOpportunity();
+        if (null !== $opportunity) {
+            foreach ($opportunity->getLineItems() as $line) {
+                ++$offerLineCount;
+                $lineTotal = (float) $line->getLineTotal();
+                $offerTotal += $lineTotal;
+                if ($line->isInvoiced()) {
+                    ++$offerInvoicedCount;
+                    $offerInvoiced += $lineTotal;
+                }
+            }
+        }
+
         return [
             'id' => $b->getId(),
             'customerId' => $b->getCustomer()->getId(),
@@ -175,6 +194,10 @@ final class AdminBillingController extends AbstractController
             'status' => $b->getStatus(),
             'wonAt' => $b->getWonAt()?->format('Y-m-d'),
             'invoicedAt' => $b->getInvoicedAt()?->format('Y-m-d'),
+            'offerTotalValue' => number_format($offerTotal, 2, '.', ''),
+            'offerInvoicedValue' => number_format($offerInvoiced, 2, '.', ''),
+            'offerLineCount' => $offerLineCount,
+            'offerInvoicedCount' => $offerInvoicedCount,
         ];
     }
 

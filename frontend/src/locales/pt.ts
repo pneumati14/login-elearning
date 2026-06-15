@@ -798,6 +798,8 @@ export default {
     offerItemCount: '{count} itens',
     offerItemsLoading: 'A carregar itens…',
     offerItemsNone: 'Esta proposta não tem itens detalhados.',
+    colInvoiced: 'Fat.',
+    invoicedShare: 'Faturado',
     pendingTotal: 'Total por faturar',
     newItem: 'Nova linha',
     closeAdd: 'Cancelar',

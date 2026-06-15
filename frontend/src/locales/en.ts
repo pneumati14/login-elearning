@@ -798,6 +798,8 @@ export default {
     offerItemCount: '{count} items',
     offerItemsLoading: 'Loading line items…',
     offerItemsNone: 'This offer has no detailed line items.',
+    colInvoiced: 'Inv.',
+    invoicedShare: 'Invoiced',
     pendingTotal: 'To invoice in total',
     newItem: 'New item',
     closeAdd: 'Cancel',

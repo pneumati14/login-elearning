@@ -22,6 +22,11 @@ export interface BillingItem {
   status: BillingStatus
   wonAt: string | null
   invoicedAt: string | null
+  /** Per-offer invoicing aggregate from the opportunity's quote lines. */
+  offerTotalValue: string
+  offerInvoicedValue: string
+  offerLineCount: number
+  offerInvoicedCount: number
 }
 
 export interface BillingItemFields {

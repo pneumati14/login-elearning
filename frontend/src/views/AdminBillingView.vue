@@ -42,10 +42,11 @@ const filter = ref<Filter>('pending')
 const pendingCount = computed(() => items.value.filter((i) => 'pending' === i.status).length)
 
 // ── Grouping by offer ────────────────────────────────────────────────
-// Billing rows snapshotted from the same won deal share an opportunityId;
-// they are shown as one summary "big item" with the line items nested under
-// it. Manual rows (and card-sourced ones) carry no opportunity, so each
-// stands alone as a single flat row.
+// Billing rows snapshotted from the same won deal share an opportunityId.
+// An offer whose opportunity has quote lines is "line-based": invoicing is
+// tracked per quote line (summary row + an expandable, checkable breakdown),
+// and the billing snapshot rows are not shown. Manual rows and lineless
+// offers keep the flat snapshot rows with their own per-item invoicing.
 type GroupStatus = 'pending' | 'invoiced' | 'partial'
 
 interface BillingGroup {
@@ -60,6 +61,11 @@ interface BillingGroup {
   wonAt: string | null
   status: GroupStatus
   isSingle: boolean
+  // Line-based offers: invoicing lives on the opportunity's quote lines.
+  isLineBased: boolean
+  offerLineCount: number
+  invoicedPercent: number | null
+  invoicedAmount: number
 }
 
 const groups = computed<BillingGroup[]>(() => {
@@ -74,8 +80,29 @@ const groups = computed<BillingGroup[]>(() => {
   const result: BillingGroup[] = []
   for (const [key, groupItems] of map) {
     const first = groupItems[0]!
-    const allInvoiced = groupItems.every((i) => 'invoiced' === i.status)
-    const anyInvoiced = groupItems.some((i) => 'invoiced' === i.status)
+    const isLineBased = null !== first.opportunityId && first.offerLineCount > 0
+
+    let status: GroupStatus
+    let invoicedPercent: number | null = null
+    let invoicedAmount = 0
+    let total: number
+    if (isLineBased) {
+      // Offer status + share derive from the per-line invoiced flags.
+      const lines = first.offerLineCount
+      const invoiced = first.offerInvoicedCount
+      status = 0 === invoiced ? 'pending' : invoiced === lines ? 'invoiced' : 'partial'
+      total = Number(first.offerTotalValue)
+      invoicedAmount = Number(first.offerInvoicedValue)
+      invoicedPercent =
+        total > 0 ? Math.round((invoicedAmount / total) * 100) : Math.round((invoiced / lines) * 100)
+    } else {
+      // Manual / lineless offers fall back to the billing-item statuses.
+      const allInvoiced = groupItems.every((i) => 'invoiced' === i.status)
+      const anyInvoiced = groupItems.some((i) => 'invoiced' === i.status)
+      status = allInvoiced ? 'invoiced' : anyInvoiced ? 'partial' : 'pending'
+      total = groupItems.reduce((sum, i) => sum + Number(i.lineTotal), 0)
+    }
+
     result.push({
       key,
       opportunityId: first.opportunityId,
@@ -84,10 +111,14 @@ const groups = computed<BillingGroup[]>(() => {
       source: first.opportunityTitle ?? first.cardName ?? '—',
       currency: first.currency,
       items: groupItems,
-      total: groupItems.reduce((sum, i) => sum + Number(i.lineTotal), 0),
+      total,
       wonAt: first.wonAt,
-      status: allInvoiced ? 'invoiced' : anyInvoiced ? 'partial' : 'pending',
+      status,
       isSingle: 1 === groupItems.length,
+      isLineBased,
+      offerLineCount: first.offerLineCount,
+      invoicedPercent,
+      invoicedAmount,
     })
   }
   return result
@@ -218,12 +249,36 @@ async function onToggleStatus(item: BillingItem): Promise<void> {
 // Flip every line of an offer at once. Fully-invoiced offers reopen; any
 // other state (pending or partial) is pushed to fully invoiced.
 async function onMarkGroup(group: BillingGroup): Promise<void> {
+  // Line-based offers flip every quote line; the summary refreshes from the
+  // refetched billing aggregate.
+  if (group.isLineBased && null !== group.opportunityId) {
+    const invoiced = 'invoiced' !== group.status
+    const result = await opportunitiesStore.setAllLinesInvoiced(group.customerId, group.opportunityId, invoiced)
+    if (!result.ok) {
+      window.alert(result.error ?? t('admin.saveFailed'))
+      return
+    }
+    void store.fetchItems()
+    return
+  }
+
   const target: BillingStatus = 'invoiced' === group.status ? 'pending' : 'invoiced'
   const results = await Promise.all(
     group.items.filter((i) => i.status !== target).map((i) => store.setStatus(i.id, target)),
   )
   const failed = results.find((r) => !r.ok)
   if (failed) window.alert(failed.error ?? t('admin.saveFailed'))
+}
+
+// Toggle one quote line of a line-based offer, then refresh the aggregate.
+async function onToggleLine(group: BillingGroup, lineId: number, invoiced: boolean): Promise<void> {
+  if (null === group.opportunityId) return
+  const result = await opportunitiesStore.setLineInvoiced(group.customerId, group.opportunityId, lineId, invoiced)
+  if (!result.ok) {
+    window.alert(result.error ?? t('admin.saveFailed'))
+    return
+  }
+  void store.fetchItems()
 }
 
 async function onDelete(item: BillingItem): Promise<void> {
@@ -327,54 +382,11 @@ async function onDelete(item: BillingItem): Promise<void> {
                 </tr>
               </thead>
               <tbody v-for="group in visibleGroups" :key="group.key" class="bill-group">
-                <!-- Summary "big item" header — multi-line offers only. -->
-                <tr v-if="!group.isSingle" class="bill-offer-row">
-                  <td>
-                    <button
-                      v-if="group.opportunityId !== null"
-                      type="button"
-                      class="offer-toggle"
-                      :class="{ 'is-open': expandedOffers.has(group.key) }"
-                      :aria-expanded="expandedOffers.has(group.key)"
-                      :aria-label="t('adminBilling.colItem')"
-                      :title="t('adminBilling.colItem')"
-                      @click="toggleOffer(group)"
-                    >▸</button>
-                    <RouterLink
-                      :to="{ name: 'admin-customer-detail', params: { id: group.customerId } }"
-                      class="bill-customer"
-                    >
-                      {{ group.customerName }}
-                    </RouterLink>
-                  </td>
-                  <td class="bill-deal">{{ group.source }}</td>
-                  <td class="bill-name">{{ t('adminBilling.offerItemCount', { count: group.items.length }) }}</td>
-                  <td class="num"></td>
-                  <td class="num"></td>
-                  <td class="num bill-line-total">{{ fmtMoney(group.total, group.currency) }}</td>
-                  <td>{{ fmtDate(group.wonAt) }}</td>
-                  <td>
-                    <span class="bill-status" :class="`bill-status--${group.status}`">
-                      {{ t(`adminBilling.status_${group.status}`) }}
-                    </span>
-                  </td>
-                  <td class="actions">
-                    <button type="button" class="row-btn row-btn--primary" @click="onMarkGroup(group)">
-                      {{ group.status === 'invoiced' ? t('adminBilling.markAllPending') : t('adminBilling.markAllInvoiced') }}
-                    </button>
-                  </td>
-                </tr>
-
-                <!-- Line items: full row when standalone, nested sub-row otherwise. -->
-                <tr
-                  v-for="item in group.items"
-                  :key="item.id"
-                  :class="{ 'is-invoiced': item.status === 'invoiced', 'bill-subrow': !group.isSingle }"
-                >
-                  <td>
-                    <template v-if="group.isSingle">
+                <!-- ══ Line-based offer: summary row + expandable, checkable breakdown ══ -->
+                <template v-if="group.isLineBased">
+                  <tr class="bill-offer-row">
+                    <td>
                       <button
-                        v-if="group.opportunityId !== null"
                         type="button"
                         class="offer-toggle"
                         :class="{ 'is-open': expandedOffers.has(group.key) }"
@@ -384,66 +396,129 @@ async function onDelete(item: BillingItem): Promise<void> {
                         @click="toggleOffer(group)"
                       >▸</button>
                       <RouterLink
+                        :to="{ name: 'admin-customer-detail', params: { id: group.customerId } }"
+                        class="bill-customer"
+                      >
+                        {{ group.customerName }}
+                      </RouterLink>
+                    </td>
+                    <td class="bill-deal">{{ group.source }}</td>
+                    <td class="bill-name">{{ t('adminBilling.offerItemCount', { count: group.offerLineCount }) }}</td>
+                    <td class="num"></td>
+                    <td class="num"></td>
+                    <td class="num bill-line-total">{{ fmtMoney(group.total, group.currency) }}</td>
+                    <td>{{ fmtDate(group.wonAt) }}</td>
+                    <td>
+                      <span class="bill-status" :class="`bill-status--${group.status}`">
+                        {{ t(`adminBilling.status_${group.status}`) }}
+                      </span>
+                      <span v-if="group.invoicedPercent !== null" class="bill-invoiced-share">
+                        {{ group.invoicedPercent }}% · {{ fmtMoney(group.invoicedAmount, group.currency) }}
+                      </span>
+                    </td>
+                    <td class="actions">
+                      <button type="button" class="row-btn row-btn--primary" @click="onMarkGroup(group)">
+                        {{ group.status === 'invoiced' ? t('adminBilling.markAllPending') : t('adminBilling.markAllInvoiced') }}
+                      </button>
+                    </td>
+                  </tr>
+                  <tr v-if="expandedOffers.has(group.key)" class="bill-offer-detail">
+                    <td :colspan="9">
+                      <OpportunityLineItems
+                        v-if="offerOpportunity(group)"
+                        editable
+                        :line-items="offerOpportunity(group)!.lineItems"
+                        :currency="offerOpportunity(group)!.currency"
+                        :total="offerOpportunity(group)!.lineItemsTotal"
+                        @toggle="(lineId, invoiced) => onToggleLine(group, lineId, invoiced)"
+                      />
+                      <p v-else class="muted bill-offer-detail-msg">{{ t('adminBilling.offerItemsLoading') }}</p>
+                    </td>
+                  </tr>
+                </template>
+
+                <!-- ══ Manual / lineless offer: flat snapshot rows, per-item invoicing ══ -->
+                <template v-else>
+                  <tr v-if="!group.isSingle" class="bill-offer-row">
+                    <td>
+                      <RouterLink
+                        :to="{ name: 'admin-customer-detail', params: { id: group.customerId } }"
+                        class="bill-customer"
+                      >
+                        {{ group.customerName }}
+                      </RouterLink>
+                    </td>
+                    <td class="bill-deal">{{ group.source }}</td>
+                    <td class="bill-name">{{ t('adminBilling.offerItemCount', { count: group.items.length }) }}</td>
+                    <td class="num"></td>
+                    <td class="num"></td>
+                    <td class="num bill-line-total">{{ fmtMoney(group.total, group.currency) }}</td>
+                    <td>{{ fmtDate(group.wonAt) }}</td>
+                    <td>
+                      <span class="bill-status" :class="`bill-status--${group.status}`">
+                        {{ t(`adminBilling.status_${group.status}`) }}
+                      </span>
+                    </td>
+                    <td class="actions">
+                      <button type="button" class="row-btn row-btn--primary" @click="onMarkGroup(group)">
+                        {{ group.status === 'invoiced' ? t('adminBilling.markAllPending') : t('adminBilling.markAllInvoiced') }}
+                      </button>
+                    </td>
+                  </tr>
+
+                  <tr
+                    v-for="item in group.items"
+                    :key="item.id"
+                    :class="{ 'is-invoiced': item.status === 'invoiced', 'bill-subrow': !group.isSingle }"
+                  >
+                    <td>
+                      <RouterLink
+                        v-if="group.isSingle"
                         :to="{ name: 'admin-customer-detail', params: { id: item.customerId } }"
                         class="bill-customer"
                       >
                         {{ item.customerName }}
                       </RouterLink>
-                    </template>
-                  </td>
-                  <td class="bill-deal">
-                    <template v-if="group.isSingle">{{ item.opportunityTitle ?? item.cardName ?? '—' }}</template>
-                  </td>
+                    </td>
+                    <td class="bill-deal">
+                      <template v-if="group.isSingle">{{ item.opportunityTitle ?? item.cardName ?? '—' }}</template>
+                    </td>
 
-                  <template v-if="editId === item.id">
-                    <td><input v-model="editFields.name" type="text" class="bill-edit-input" /></td>
-                    <td class="num"><input v-model="editFields.quantity" type="number" min="0" step="0.01" class="bill-edit-input bill-edit-input--num" /></td>
-                    <td class="num"><input v-model="editFields.unitPrice" type="number" min="0" step="0.01" class="bill-edit-input bill-edit-input--num" /></td>
-                    <td class="num">{{ fmtMoney(Number(editFields.quantity || 0) * Number(editFields.unitPrice || 0), editFields.currency) }}</td>
-                  </template>
-                  <template v-else>
-                    <td class="bill-name" :class="{ 'bill-name--sub': !group.isSingle }">{{ item.name }}</td>
-                    <td class="num">{{ fmtNumber(item.quantity) }}</td>
-                    <td class="num">{{ fmtMoney(item.unitPrice, item.currency) }}</td>
-                    <td class="num bill-line-total">{{ fmtMoney(item.lineTotal, item.currency) }}</td>
-                  </template>
-
-                  <td>{{ group.isSingle ? fmtDate(item.wonAt) : '' }}</td>
-                  <td>
-                    <span class="bill-status" :class="`bill-status--${item.status}`">
-                      {{ t(`adminBilling.status_${item.status}`) }}
-                    </span>
-                    <span v-if="item.invoicedAt" class="bill-invoiced-at">{{ fmtDate(item.invoicedAt) }}</span>
-                  </td>
-                  <td class="actions">
                     <template v-if="editId === item.id">
-                      <button type="button" class="row-btn row-btn--primary" @click="saveEdit">{{ t('admin.save') }}</button>
-                      <button type="button" class="row-btn" @click="cancelEdit">{{ t('adminBilling.cancel') }}</button>
+                      <td><input v-model="editFields.name" type="text" class="bill-edit-input" /></td>
+                      <td class="num"><input v-model="editFields.quantity" type="number" min="0" step="0.01" class="bill-edit-input bill-edit-input--num" /></td>
+                      <td class="num"><input v-model="editFields.unitPrice" type="number" min="0" step="0.01" class="bill-edit-input bill-edit-input--num" /></td>
+                      <td class="num">{{ fmtMoney(Number(editFields.quantity || 0) * Number(editFields.unitPrice || 0), editFields.currency) }}</td>
                     </template>
                     <template v-else>
-                      <button type="button" class="row-btn row-btn--primary" @click="onToggleStatus(item)">
-                        {{ item.status === 'pending' ? t('adminBilling.markInvoiced') : t('adminBilling.markPending') }}
-                      </button>
-                      <button type="button" class="row-btn" @click="startEdit(item)">{{ t('admin.edit') }}</button>
-                      <button type="button" class="row-btn row-btn--danger" @click="onDelete(item)">{{ t('admin.delete') }}</button>
+                      <td class="bill-name" :class="{ 'bill-name--sub': !group.isSingle }">{{ item.name }}</td>
+                      <td class="num">{{ fmtNumber(item.quantity) }}</td>
+                      <td class="num">{{ fmtMoney(item.unitPrice, item.currency) }}</td>
+                      <td class="num bill-line-total">{{ fmtMoney(item.lineTotal, item.currency) }}</td>
                     </template>
-                  </td>
-                </tr>
 
-                <!-- ── Full original quote lines of the offer (expanded) ── -->
-                <tr v-if="expandedOffers.has(group.key)" class="bill-offer-detail">
-                  <td :colspan="9">
-                    <OpportunityLineItems
-                      v-if="offerOpportunity(group) && offerOpportunity(group)!.lineItems.length"
-                      :line-items="offerOpportunity(group)!.lineItems"
-                      :currency="offerOpportunity(group)!.currency"
-                      :total="offerOpportunity(group)!.lineItemsTotal"
-                    />
-                    <p v-else class="muted bill-offer-detail-msg">
-                      {{ offerOpportunity(group) ? t('adminBilling.offerItemsNone') : t('adminBilling.offerItemsLoading') }}
-                    </p>
-                  </td>
-                </tr>
+                    <td>{{ group.isSingle ? fmtDate(item.wonAt) : '' }}</td>
+                    <td>
+                      <span class="bill-status" :class="`bill-status--${item.status}`">
+                        {{ t(`adminBilling.status_${item.status}`) }}
+                      </span>
+                      <span v-if="item.invoicedAt" class="bill-invoiced-at">{{ fmtDate(item.invoicedAt) }}</span>
+                    </td>
+                    <td class="actions">
+                      <template v-if="editId === item.id">
+                        <button type="button" class="row-btn row-btn--primary" @click="saveEdit">{{ t('admin.save') }}</button>
+                        <button type="button" class="row-btn" @click="cancelEdit">{{ t('adminBilling.cancel') }}</button>
+                      </template>
+                      <template v-else>
+                        <button type="button" class="row-btn row-btn--primary" @click="onToggleStatus(item)">
+                          {{ item.status === 'pending' ? t('adminBilling.markInvoiced') : t('adminBilling.markPending') }}
+                        </button>
+                        <button type="button" class="row-btn" @click="startEdit(item)">{{ t('admin.edit') }}</button>
+                        <button type="button" class="row-btn row-btn--danger" @click="onDelete(item)">{{ t('admin.delete') }}</button>
+                      </template>
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
@@ -714,6 +789,20 @@ async function onDelete(item: BillingItem): Promise<void> {
 
 .bill-offer-detail-msg {
   padding: 0.8rem 1rem;
+}
+
+/* Per-offer invoiced share shown under the status badge. */
+.bill-invoiced-share {
+  display: block;
+  margin-top: 0.2rem;
+  color: #545f71;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bill-invoiced-share strong {
+  color: #198754;
 }
 
 /* Line items nested under a summary row: lighter, indented name. */

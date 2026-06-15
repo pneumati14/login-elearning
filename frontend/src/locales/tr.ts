@@ -798,6 +798,8 @@ export default {
     offerItemCount: '{count} kalem',
     offerItemsLoading: 'Kalemler yükleniyor…',
     offerItemsNone: 'Bu teklifin ayrıntılı kalemi yok.',
+    colInvoiced: 'Fat.',
+    invoicedShare: 'Faturalandı',
     pendingTotal: 'Faturalanacak toplam',
     newItem: 'Yeni kalem',
     closeAdd: 'Vazgeç',

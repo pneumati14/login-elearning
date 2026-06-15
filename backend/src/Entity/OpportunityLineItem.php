@@ -55,6 +55,13 @@ class OpportunityLineItem
     #[ORM\Column]
     private int $position = 0;
 
+    /** Per-line billing state: whether this line has been invoiced. */
+    #[ORM\Column]
+    private bool $invoiced = false;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $invoicedAt = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -152,6 +159,25 @@ class OpportunityLineItem
     public function setPosition(int $position): static
     {
         $this->position = $position;
+
+        return $this;
+    }
+
+    public function isInvoiced(): bool
+    {
+        return $this->invoiced;
+    }
+
+    public function getInvoicedAt(): ?\DateTimeImmutable
+    {
+        return $this->invoicedAt;
+    }
+
+    /** Flip the line's billing state, stamping/clearing the invoiced date. */
+    public function setInvoiced(bool $invoiced, ?\DateTimeImmutable $at = null): static
+    {
+        $this->invoiced = $invoiced;
+        $this->invoicedAt = $invoiced ? ($at ?? new \DateTimeImmutable()) : null;
 
         return $this;
     }

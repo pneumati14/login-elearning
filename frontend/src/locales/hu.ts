@@ -797,6 +797,8 @@ export default {
     offerItemCount: '{count} tétel',
     offerItemsLoading: 'Tételek betöltése…',
     offerItemsNone: 'Ehhez az ajánlathoz nincs részletes tétel.',
+    colInvoiced: 'Száml.',
+    invoicedShare: 'Kiszámlázva',
     pendingTotal: 'Számlázandó összesen',
     newItem: 'Új tétel',
     closeAdd: 'Mégse',

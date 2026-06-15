@@ -798,6 +798,8 @@ export default {
     offerItemCount: '{count} pozycji',
     offerItemsLoading: 'Wczytywanie pozycji…',
     offerItemsNone: 'Ta oferta nie ma szczegółowych pozycji.',
+    colInvoiced: 'Zafakt.',
+    invoicedShare: 'Zafakturowane',
     pendingTotal: 'Do zafakturowania łącznie',
     newItem: 'Nowa pozycja',
     closeAdd: 'Anuluj',

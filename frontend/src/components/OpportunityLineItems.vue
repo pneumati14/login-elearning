@@ -4,15 +4,35 @@ import { useI18n } from 'vue-i18n'
 import { formatMoney, type LineItem, type Currency } from '@/stores/opportunities'
 import { useProductsStore } from '@/stores/products'
 
-const props = defineProps<{ lineItems: LineItem[]; currency: Currency; total?: string }>()
+const props = defineProps<{
+  lineItems: LineItem[]
+  currency: Currency
+  total?: string
+  /** When true, each line gets an "invoiced" checkbox and the footer shows
+   *  the offer's invoiced percentage and amount. */
+  editable?: boolean
+}>()
+
+const emit = defineEmits<{ (e: 'toggle', lineId: number, invoiced: boolean): void }>()
 
 const { t } = useI18n()
 const productsStore = useProductsStore()
 
 // Fall back to summing the lines when no explicit offer total is passed.
-const totalValue = computed<string>(
-  () => props.total ?? props.lineItems.reduce((sum, li) => sum + Number(li.lineTotal), 0).toFixed(2),
+const totalValue = computed<number>(() =>
+  undefined !== props.total ? Number(props.total) : props.lineItems.reduce((sum, li) => sum + Number(li.lineTotal), 0),
 )
+
+const invoicedValue = computed<number>(() =>
+  props.lineItems.reduce((sum, li) => sum + (li.invoiced ? Number(li.lineTotal) : 0), 0),
+)
+
+// Invoiced share by value; zero-valued offers fall back to a line count.
+const invoicedPercent = computed<number>(() => {
+  if (totalValue.value > 0) return Math.round((invoicedValue.value / totalValue.value) * 100)
+  if (0 === props.lineItems.length) return 0
+  return Math.round((props.lineItems.filter((li) => li.invoiced).length / props.lineItems.length) * 100)
+})
 
 /** "Category › Subcategory" for a catalogue line; empty for custom lines. */
 function lineCategoryPath(li: LineItem): string {
@@ -29,14 +49,22 @@ function lineHasSplit(li: LineItem): boolean {
 </script>
 
 <template>
-  <div class="opp-lines">
+  <div class="opp-lines" :class="{ 'is-editable': editable }">
     <div class="opp-lines-head">
+      <span v-if="editable" class="opp-line-check-head">{{ t('adminBilling.colInvoiced') }}</span>
       <span>{{ t('adminCustomers.oppProduct') }}</span>
       <span class="ta-right">{{ t('adminCustomers.oppQuantity') }}</span>
       <span class="ta-right">{{ t('adminCustomers.oppUnitPrice') }}</span>
       <span class="ta-right">{{ t('adminCustomers.oppLineTotal') }}</span>
     </div>
-    <div v-for="li in lineItems" :key="li.id" class="opp-line">
+    <div v-for="li in lineItems" :key="li.id" class="opp-line" :class="{ 'is-invoiced': editable && li.invoiced }">
+      <label v-if="editable" class="opp-line-check">
+        <input
+          type="checkbox"
+          :checked="li.invoiced"
+          @change="emit('toggle', li.id, ($event.target as HTMLInputElement).checked)"
+        />
+      </label>
       <div class="opp-line-product">
         <span v-if="lineCategoryPath(li)" class="opp-line-cat">{{ lineCategoryPath(li) }}</span>
         <span class="opp-line-name">{{ li.productName }}</span>
@@ -54,7 +82,14 @@ function lineHasSplit(li: LineItem): boolean {
     </div>
     <div class="opp-line opp-line--total">
       <span class="opp-line-total-label">{{ t('adminCustomers.oppLineItemsTotal') }}</span>
-      <strong>{{ formatMoney(totalValue, currency) }}</strong>
+      <strong>{{ formatMoney(String(totalValue.toFixed(2)), currency) }}</strong>
+    </div>
+    <div v-if="editable" class="opp-lines-invoiced">
+      <span class="opp-lines-invoiced-label">{{ t('adminBilling.invoicedShare') }}</span>
+      <span class="opp-lines-invoiced-value">
+        <strong>{{ invoicedPercent }}%</strong>
+        · {{ formatMoney(String(invoicedValue.toFixed(2)), currency) }}
+      </span>
     </div>
   </div>
 </template>
@@ -75,6 +110,11 @@ function lineHasSplit(li: LineItem): boolean {
   align-items: start;
 }
 
+.opp-lines.is-editable .opp-lines-head,
+.opp-lines.is-editable .opp-line {
+  grid-template-columns: 2.4rem minmax(0, 1fr) 5rem 11rem 8rem;
+}
+
 .opp-lines-head {
   color: #8b94a6;
   font-size: 0.7rem;
@@ -86,6 +126,24 @@ function lineHasSplit(li: LineItem): boolean {
 .opp-line {
   color: #545f71;
   font-size: 0.85rem;
+}
+
+.opp-line.is-invoiced {
+  opacity: 0.62;
+}
+
+.opp-line-check,
+.opp-line-check-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.opp-line-check input {
+  width: 1.05rem;
+  height: 1.05rem;
+  cursor: pointer;
+  accent-color: var(--login-primary, #ed2044);
 }
 
 .opp-line-product {
@@ -139,6 +197,10 @@ function lineHasSplit(li: LineItem): boolean {
   border-top: 1px dashed #d4dae6;
 }
 
+.opp-lines.is-editable .opp-line--total {
+  grid-template-columns: 1fr auto;
+}
+
 .opp-line-total-label {
   color: #545f71;
   font-weight: 700;
@@ -146,6 +208,29 @@ function lineHasSplit(li: LineItem): boolean {
 
 .opp-line--total strong {
   color: var(--login-primary, #ed2044);
+}
+
+.opp-lines-invoiced {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.1rem;
+}
+
+.opp-lines-invoiced-label {
+  color: #545f71;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.opp-lines-invoiced-value {
+  color: var(--login-secondary, #0c1c40);
+  font-size: 0.85rem;
+}
+
+.opp-lines-invoiced-value strong {
+  color: #198754;
 }
 
 .ta-right {

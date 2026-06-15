@@ -798,6 +798,8 @@ export default {
     offerItemCount: '{count} Positionen',
     offerItemsLoading: 'Positionen werden geladen…',
     offerItemsNone: 'Dieses Angebot hat keine detaillierten Positionen.',
+    colInvoiced: 'Abr.',
+    invoicedShare: 'Berechnet',
     pendingTotal: 'Offen gesamt',
     newItem: 'Neue Position',
     closeAdd: 'Abbrechen',

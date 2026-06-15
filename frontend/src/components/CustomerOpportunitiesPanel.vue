@@ -147,6 +147,7 @@ function openEdit(o: Opportunity): void {
   form.contactId = o.contactId
   form.notes = o.notes
   form.lineItems = o.lineItems.map((li) => ({
+    id: li.id,
     productId: li.productId,
     productName: li.productName,
     quantity: li.quantity,
@@ -180,6 +181,7 @@ watch(
 // ── Line item editing ─────────────────────────────────────────────────
 function addLine(): void {
   form.lineItems.push({
+    id: null,
     productId: null,
     productName: '',
     quantity: '1',

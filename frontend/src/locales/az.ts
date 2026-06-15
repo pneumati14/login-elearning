@@ -798,6 +798,8 @@ export default {
     offerItemCount: '{count} sətir',
     offerItemsLoading: 'Sətirlər yüklənir…',
     offerItemsNone: 'Bu təklifin detallı sətirləri yoxdur.',
+    colInvoiced: 'Fakt.',
+    invoicedShare: 'Fakturalanıb',
     pendingTotal: 'Fakturalanacaq cəmi',
     newItem: 'Yeni sətir',
     closeAdd: 'Ləğv et',
