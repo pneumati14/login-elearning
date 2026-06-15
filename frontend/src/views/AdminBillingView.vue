@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useBillingStore, type BillingItem, type BillingItemFields, type BillingStatus } from '@/stores/billing'
 import { useCustomersStore } from '@/stores/customers'
-import { useOpportunitiesStore, type Opportunity } from '@/stores/opportunities'
+import { useOpportunitiesStore, type Opportunity, type LineItem } from '@/stores/opportunities'
 import { useProductsStore } from '@/stores/products'
 import { useMoneyFormat } from '@/stores/currencySettings'
 import AppSelect from '@/components/AppSelect.vue'
@@ -169,6 +169,13 @@ function toggleOffer(group: BillingGroup): void {
 function offerOpportunity(group: BillingGroup): Opportunity | null {
   if (null === group.opportunityId) return null
   return opportunitiesStore.list(group.customerId).find((o) => o.id === group.opportunityId) ?? null
+}
+
+// The Invoiced tab lists only the lines that were ticked invoiced; the
+// Pending/All tabs list every quote line so they can still be ticked.
+function offerLineItems(opp: Opportunity): LineItem[] {
+  if ('invoiced' === filter.value) return opp.lineItems.filter((li) => li.invoiced)
+  return opp.lineItems
 }
 
 // ── Formatting ───────────────────────────────────────────────────────
@@ -428,9 +435,10 @@ async function onDelete(item: BillingItem): Promise<void> {
                       <OpportunityLineItems
                         v-if="offerOpportunity(group)"
                         editable
-                        :line-items="offerOpportunity(group)!.lineItems"
+                        :show-share="filter !== 'invoiced'"
+                        :line-items="offerLineItems(offerOpportunity(group)!)"
                         :currency="offerOpportunity(group)!.currency"
-                        :total="offerOpportunity(group)!.lineItemsTotal"
+                        :total="filter === 'invoiced' ? undefined : offerOpportunity(group)!.lineItemsTotal"
                         @toggle="(lineId, invoiced) => onToggleLine(group, lineId, invoiced)"
                       />
                       <p v-else class="muted bill-offer-detail-msg">{{ t('adminBilling.offerItemsLoading') }}</p>

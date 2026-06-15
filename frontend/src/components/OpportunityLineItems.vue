@@ -11,6 +11,9 @@ const props = defineProps<{
   /** When true, each line gets an "invoiced" checkbox and the footer shows
    *  the offer's invoiced percentage and amount. */
   editable?: boolean
+  /** When false, hides the invoiced-share footer (e.g. an already-filtered
+   *  invoiced-only view where the share is always 100%). Defaults to true. */
+  showShare?: boolean
 }>()
 
 const emit = defineEmits<{ (e: 'toggle', lineId: number, invoiced: boolean): void }>()
@@ -84,7 +87,7 @@ function lineHasSplit(li: LineItem): boolean {
       <span class="opp-line-total-label">{{ t('adminCustomers.oppLineItemsTotal') }}</span>
       <strong>{{ formatMoney(String(totalValue.toFixed(2)), currency) }}</strong>
     </div>
-    <div v-if="editable" class="opp-lines-invoiced">
+    <div v-if="editable && showShare !== false" class="opp-lines-invoiced">
       <span class="opp-lines-invoiced-label">{{ t('adminBilling.invoicedShare') }}</span>
       <span class="opp-lines-invoiced-value">
         <strong>{{ invoicedPercent }}%</strong>
