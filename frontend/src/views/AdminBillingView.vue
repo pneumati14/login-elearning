@@ -55,6 +55,7 @@ interface BillingGroup {
   customerId: number
   customerName: string
   source: string
+  quoteNumber: string | null
   currency: string
   items: BillingItem[]
   total: number
@@ -109,6 +110,7 @@ const groups = computed<BillingGroup[]>(() => {
       customerId: first.customerId,
       customerName: first.customerName,
       source: first.opportunityTitle ?? first.cardName ?? '—',
+      quoteNumber: first.quoteNumber,
       currency: first.currency,
       items: groupItems,
       total,
@@ -410,7 +412,10 @@ async function onDelete(item: BillingItem): Promise<void> {
                         {{ group.customerName }}
                       </RouterLink>
                     </td>
-                    <td class="bill-deal">{{ group.source }}</td>
+                    <td class="bill-deal">
+                      {{ group.source }}
+                      <span v-if="group.quoteNumber" class="bill-quote-badge">{{ group.quoteNumber }}</span>
+                    </td>
                     <td class="bill-name">{{ t('adminBilling.offerItemCount', { count: group.offerLineCount }) }}</td>
                     <td class="num"></td>
                     <td class="num"></td>
@@ -457,7 +462,10 @@ async function onDelete(item: BillingItem): Promise<void> {
                         {{ group.customerName }}
                       </RouterLink>
                     </td>
-                    <td class="bill-deal">{{ group.source }}</td>
+                    <td class="bill-deal">
+                      {{ group.source }}
+                      <span v-if="group.quoteNumber" class="bill-quote-badge">{{ group.quoteNumber }}</span>
+                    </td>
                     <td class="bill-name">{{ t('adminBilling.offerItemCount', { count: group.items.length }) }}</td>
                     <td class="num"></td>
                     <td class="num"></td>
@@ -490,7 +498,10 @@ async function onDelete(item: BillingItem): Promise<void> {
                       </RouterLink>
                     </td>
                     <td class="bill-deal">
-                      <template v-if="group.isSingle">{{ item.opportunityTitle ?? item.cardName ?? '—' }}</template>
+                      <template v-if="group.isSingle">
+                        {{ item.opportunityTitle ?? item.cardName ?? '—' }}
+                        <span v-if="item.quoteNumber" class="bill-quote-badge">{{ item.quoteNumber }}</span>
+                      </template>
                     </td>
 
                     <template v-if="editId === item.id">
@@ -848,6 +859,20 @@ async function onDelete(item: BillingItem): Promise<void> {
 .bill-deal {
   color: #545f71;
   font-size: 0.85rem;
+}
+
+/* Offer's quote number, shown beside the deal name. */
+.bill-quote-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.45rem;
+  background: #eef1f6;
+  border-radius: 0.4rem;
+  color: #545f71;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .bill-name {

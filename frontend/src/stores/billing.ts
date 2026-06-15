@@ -13,6 +13,7 @@ export interface BillingItem {
   customerName: string
   opportunityId: number | null
   opportunityTitle: string | null
+  quoteNumber: string | null
   cardName: string | null
   name: string
   quantity: string
