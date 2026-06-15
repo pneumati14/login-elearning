@@ -124,14 +124,15 @@ const groups = computed<BillingGroup[]>(() => {
   return result
 })
 
-// The status filter selects whole offers: 'pending' keeps any offer that
-// still has an uninvoiced line (pending or partial); 'invoiced' keeps only
-// fully-invoiced offers. Visible offers always show all their line items so
-// the summary total matches the rows beneath it.
+// The status filter selects whole offers. A partially-invoiced offer has both
+// invoiced and uninvoiced lines, so it shows on BOTH tabs: 'pending' keeps any
+// offer with an uninvoiced line (pending or partial); 'invoiced' keeps any
+// offer with an invoiced line (invoiced or partial). Visible offers always
+// show all their line items so the summary total matches the rows beneath it.
 const visibleGroups = computed(() => {
   if ('all' === filter.value) return groups.value
   if ('pending' === filter.value) return groups.value.filter((g) => 'invoiced' !== g.status)
-  return groups.value.filter((g) => 'invoiced' === g.status)
+  return groups.value.filter((g) => 'pending' !== g.status)
 })
 
 // Per-currency totals of everything still waiting to be invoiced.
