@@ -87,6 +87,7 @@ services:
       SITE_ADDRESS: "${SITE_ADDRESS:-localhost}"
       DEFAULT_SNI: "${DEFAULT_SNI:-localhost}"
       ACME_EMAIL: "${ACME_EMAIL:-}"
+      REDIRECT_FROM: "${REDIRECT_FROM:-redirect.localhost}"
     volumes:
       - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       # Symfony public/ — read-only; lets Caddy resolve paths for php_fastcgi.

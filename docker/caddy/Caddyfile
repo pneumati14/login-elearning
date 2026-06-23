@@ -59,3 +59,12 @@
 		reverse_proxy frontend:5173
 	}
 }
+
+# ── Legacy domain redirect ───────────────────────────────────────────
+# The former login.hu site was retired; permanently redirect it (and its
+# www. host) to the Hungarian version of the new site. The source hosts
+# come from REDIRECT_FROM so only production carries the public domain;
+# staging/dev fall back to an internal-CA placeholder (no public ACME).
+{$REDIRECT_FROM:redirect.localhost} {
+	redir https://www.loginautonom.com/?lang=hu 301
+}
